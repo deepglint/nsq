@@ -14,7 +14,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/bitly/go-nsq"
+	"github.com/deepglint/go-nsq"
 )
 
 const (

@@ -1,7 +1,7 @@
 <p align="center"><img src="http://nsq.io/static/img/nsq.png"/></p>
 
- * **Source**: [https://github.com/bitly/nsq][github]
- * **Issues**: [https://github.com/bitly/nsq/issues][issues]
+ * **Source**: [https://github.com/deepglint/nsq][github]
+ * **Issues**: [https://github.com/deepglint/nsq/issues][issues]
  * **Mailing List**: [nsq-users@googlegroups.com](https://groups.google.com/d/forum/nsq-users)
  * **IRC**: #nsq on freenode
  * **Docs**: [http://nsq.io][docs]
@@ -26,7 +26,7 @@ releases][installing] for linux and darwin.
 
 NOTE: master is our *development* branch and may not be stable at all times.
 
-[![Build Status](https://secure.travis-ci.org/bitly/nsq.png?branch=master)](http://travis-ci.org/bitly/nsq)
+[![Build Status](https://secure.travis-ci.org/deepglint/nsq.png?branch=master)](http://travis-ci.org/deepglint/nsq)
 
 ## In Production
 
@@ -67,8 +67,8 @@ NSQ was designed and developed by Matt Reiferson ([@imsnakes][snakes_twitter]) a
 [bitly][bitly] and all our [contributors][contributors].
 
 [docs]: http://nsq.io/
-[github]: https://github.com/bitly/nsq
-[issues]: https://github.com/bitly/nsq/issues
+[github]: https://github.com/deepglint/nsq
+[issues]: https://github.com/deepglint/nsq/issues
 [changelog]: ChangeLog.md
 [protocol]: http://nsq.io/clients/tcp_protocol_spec.html
 [installing]: http://nsq.io/deployment/installing.html
@@ -76,7 +76,7 @@ NSQ was designed and developed by Matt Reiferson ([@imsnakes][snakes_twitter]) a
 [jehiah_twitter]: https://twitter.com/jehiah
 [bitly]: https://bitly.com
 [features_guarantees]: http://nsq.io/overview/features_and_guarantees.html
-[latest_tag]: https://github.com/bitly/nsq/releases/tag/v0.2.28
-[contributors]: https://github.com/bitly/nsq/graphs/contributors
+[latest_tag]: https://github.com/deepglint/nsq/releases/tag/v0.2.28
+[contributors]: https://github.com/deepglint/nsq/graphs/contributors
 [client_libraries]: http://nsq.io/clients/client_libraries.html
 [jekyll]: http://jekyllrb.com/

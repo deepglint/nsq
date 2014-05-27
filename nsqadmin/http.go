@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bitly/go-nsq"
-	"github.com/bitly/nsq/nsqadmin/templates"
-	"github.com/bitly/nsq/util"
-	"github.com/bitly/nsq/util/lookupd"
+	"github.com/deepglint/go-nsq"
+	"github.com/deepglint/nsq/nsqadmin/templates"
+	"github.com/deepglint/nsq/util"
+	"github.com/deepglint/nsq/util/lookupd"
 )
 
 // this is similar to httputil.NewSingleHostReverseProxy except it passes along basic auth

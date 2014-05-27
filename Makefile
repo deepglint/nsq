@@ -21,7 +21,8 @@ all: $(BINARIES) $(APPS)
 
 $(BLDDIR)/%:
 	@mkdir -p $(dir $@)
-	go build ${GOFLAGS} -o $(abspath $@) ./$*
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ${GOFLAGS} -o $(abspath $@) ./$*
+	#go build ${GOFLAGS} -o $(abspath $@) ./$*
 
 $(BINARIES): %: $(BLDDIR)/%
 $(APPS): %: $(BLDDIR)/apps/%

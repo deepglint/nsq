@@ -19,12 +19,12 @@ AutoReqProv: no
 
 %description 
 nsq - realtime distributed message processing at scale
-https://github.com/bitly/nsq
+https://github.com/deepglint/nsq
 
 %prep
 mkdir -p $RPM_BUILD_DIR/%{name}-%{version}-%{release}
 cd $RPM_BUILD_DIR/%{name}-%{version}-%{release}
-git clone git@github.com:bitly/nsq.git
+git clone git@github.com:deepglint/nsq.git
 
 %build
 cd $RPM_BUILD_DIR/%{name}-%{version}-%{release}/nsq

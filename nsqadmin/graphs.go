@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/bitly/go-simplejson"
-	"github.com/bitly/nsq/util"
+	"github.com/deepglint/nsq/util"
 )
 
 type GraphTarget interface {

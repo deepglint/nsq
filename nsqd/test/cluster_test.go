@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bitly/nsq/util"
 	"github.com/bmizerany/assert"
+	"github.com/deepglint/nsq/util"
 )
 
 func TestNsqdToLookupd(t *testing.T) {

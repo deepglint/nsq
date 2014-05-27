@@ -11,9 +11,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/bitly/go-nsq"
-	"github.com/bitly/nsq/util"
-	"github.com/bitly/nsq/util/pqueue"
+	"github.com/deepglint/go-nsq"
+	"github.com/deepglint/nsq/util"
+	"github.com/deepglint/nsq/util/pqueue"
 )
 
 // the amount of time a worker will wait when idle
@@ -125,8 +125,8 @@ func NewChannel(topicName string, channelName string, context *context,
 	go c.messagePump()
 
 	c.waitGroup.Wrap(func() { c.router() })
-	c.waitGroup.Wrap(func() { c.deferredWorker() })
-	c.waitGroup.Wrap(func() { c.inFlightWorker() })
+	//c.waitGroup.Wrap(func() { c.deferredWorker() })
+	//c.waitGroup.Wrap(func() { c.inFlightWorker() })
 
 	go c.context.nsqd.Notify(c)
 
@@ -555,17 +555,27 @@ func (c *Channel) addToDeferredPQ(item *pqueue.Item) {
 // Router handles the muxing of incoming Channel messages, either writing
 // to the in-memory channel or to the backend
 func (c *Channel) router() {
-	var msgBuf bytes.Buffer
+	//var msgBuf bytes.Buffer
 	for msg := range c.incomingMsgChan {
+		////////////////////////////
+		//only take the newest msg
+		l := len(c.memoryMsgChan)
+		for i := 0; i < l; i++ {
+			<-c.memoryMsgChan
+		}
+		log.Printf("cleared %d old msg", l)
+		////////////////////////////
 		select {
 		case c.memoryMsgChan <- msg:
-		default:
-			err := writeMessageToBackend(&msgBuf, msg, c.backend)
-			if err != nil {
-				log.Printf("CHANNEL(%s) ERROR: failed to write message to backend - %s", c.name, err.Error())
-				// theres not really much we can do at this point, you're certainly
-				// going to lose messages...
-			}
+			log.Printf("new msg reveived, len of memoryMsgChan: %d", len(c.memoryMsgChan))
+			log.Printf("                len of incomingMsgChan: %d", len(c.incomingMsgChan))
+			//default:
+			//err := writeMessageToBackend(&msgBuf, msg, c.backend)
+			//if err != nil {
+			//	log.Printf("CHANNEL(%s) ERROR: failed to write message to backend - %s", c.name, err.Error())
+			//	// theres not really much we can do at this point, you're certainly
+			//	// going to lose messages...
+			//}
 		}
 	}
 

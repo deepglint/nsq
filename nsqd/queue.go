@@ -3,7 +3,7 @@ package nsqd
 import (
 	"bytes"
 
-	"github.com/bitly/go-nsq"
+	"github.com/deepglint/go-nsq"
 )
 
 // BackendQueue represents the behavior for the secondary message

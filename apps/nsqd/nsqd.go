@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/bitly/nsq/nsqd"
-	"github.com/bitly/nsq/util"
+	"github.com/deepglint/nsq/nsqd"
+	"github.com/deepglint/nsq/util"
 	"github.com/mreiferson/go-options"
 )
 

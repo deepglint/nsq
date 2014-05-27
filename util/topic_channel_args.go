@@ -3,7 +3,7 @@ package util
 import (
 	"errors"
 
-	"github.com/bitly/go-nsq"
+	"github.com/deepglint/go-nsq"
 )
 
 type Getter interface {

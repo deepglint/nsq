@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bitly/go-nsq"
 	"github.com/bmizerany/assert"
+	"github.com/deepglint/go-nsq"
 )
 
 func TestGetTopic(t *testing.T) {

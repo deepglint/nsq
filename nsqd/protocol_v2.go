@@ -14,8 +14,8 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/bitly/go-nsq"
-	"github.com/bitly/nsq/util"
+	"github.com/deepglint/go-nsq"
+	"github.com/deepglint/nsq/util"
 )
 
 const maxTimeout = time.Hour
@@ -167,8 +167,8 @@ func (p *protocolV2) Exec(client *clientV2, params [][]byte) ([]byte, error) {
 		return p.FIN(client, params)
 	case bytes.Equal(params[0], []byte("RDY")):
 		return p.RDY(client, params)
-	case bytes.Equal(params[0], []byte("REQ")):
-		return p.REQ(client, params)
+	//case bytes.Equal(params[0], []byte("REQ")):
+	//	return p.REQ(client, params)
 	case bytes.Equal(params[0], []byte("PUB")):
 		return p.PUB(client, params)
 	case bytes.Equal(params[0], []byte("MPUB")):
@@ -740,6 +740,7 @@ func readMPUB(r io.Reader, tmp []byte, idChan chan nsq.MessageID, maxMessageSize
 
 func readLen(r io.Reader, tmp []byte) (int32, error) {
 	_, err := io.ReadFull(r, tmp)
+	//log.Printf("tmp: %v", tmp)
 	if err != nil {
 		return 0, err
 	}

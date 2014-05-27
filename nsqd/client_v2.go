@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/bitly/go-nsq"
+	"github.com/deepglint/go-nsq"
 	"github.com/mreiferson/go-snappystream"
 )
 

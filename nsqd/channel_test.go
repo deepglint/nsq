@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bitly/go-nsq"
 	"github.com/bmizerany/assert"
+	"github.com/deepglint/go-nsq"
 )
 
 // ensure that we can push a message through a topic and get it out of a channel

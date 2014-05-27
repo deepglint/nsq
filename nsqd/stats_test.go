@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bitly/go-nsq"
-	"github.com/bitly/nsq/util"
 	"github.com/bmizerany/assert"
+	"github.com/deepglint/go-nsq"
+	"github.com/deepglint/nsq/util"
 	"github.com/mreiferson/go-snappystream"
 )
 

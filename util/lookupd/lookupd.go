@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bitly/nsq/util"
-	"github.com/bitly/nsq/util/semver"
+	"github.com/deepglint/nsq/util"
+	"github.com/deepglint/nsq/util/semver"
 )
 
 // GetLookupdTopics returns a []string containing a union of all the topics

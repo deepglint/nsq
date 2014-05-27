@@ -3,7 +3,7 @@ package nsqd
 import (
 	"sort"
 
-	"github.com/bitly/nsq/util"
+	"github.com/deepglint/nsq/util"
 )
 
 type TopicStats struct {

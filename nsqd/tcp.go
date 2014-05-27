@@ -5,8 +5,8 @@ import (
 	"log"
 	"net"
 
-	"github.com/bitly/go-nsq"
-	"github.com/bitly/nsq/util"
+	"github.com/deepglint/go-nsq"
+	"github.com/deepglint/nsq/util"
 )
 
 type tcpServer struct {

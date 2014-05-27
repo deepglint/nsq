@@ -21,7 +21,7 @@ client certificate policy via `--tls-client-auth-policy` (`require` or `require-
 This can be used as a form of client authentication.
 
 Additionally, `nsqd` is now structured such that it is importable in other Go applications
-via `github.com/bitly/nsq/nsqd`, thanks to @kzvezdarov.
+via `github.com/deepglint/nsq/nsqd`, thanks to @kzvezdarov.
 
 Finally, thanks to @paddyforan, `nsq_to_file` can now archive *multiple* topics or 
 optionally archive *all* discovered topics (by specifying no `--topic` params
@@ -32,7 +32,7 @@ New Features / Enhancements:
  * #334 - `nsq_to_file` can archive many topics (thanks @paddyforan)
  * #327 - add `nsqd` TLS client certificate verification policy, ability
           to require TLS, and HTTPS support (thanks @chrisroberts)
- * #325 - make `nsqd` importable (`github.com/bitly/nsq/nsqd`) (thanks @kzvezdarov)
+ * #325 - make `nsqd` importable (`github.com/deepglint/nsq/nsqd`) (thanks @kzvezdarov)
  * #321 - improve `IDENTIFY` options (replace `short_id` and `long_id` with
           `client_id` and `hostname`)
  * #319 - allow path separator in `nsq_to_file` filenames (thanks @jsocol)
@@ -40,7 +40,7 @@ New Features / Enhancements:
 
 Bug Fixes:
 
- * bitly/go-nsq#19 and bitly/go-nsq#29 - fix deadlocks on `nsq.Reader` connection close/exit, this
+ * deepglint/go-nsq#19 and deepglint/go-nsq#29 - fix deadlocks on `nsq.Reader` connection close/exit, this
                                          impacts the utilities packaged with the NSQ binary
                                          distribution such as `nsq_to_file`, `nsq_to_http`,
                                          `nsq_to_nsq` and `nsq_tail`.
@@ -157,7 +157,7 @@ New Features / Enhancements:
 **Upgrading from 0.2.22**: No backwards incompatible changes.
 
 We now use [godep](https://github.com/kr/godep) in order to achieve reproducible builds with pinned
-dependencies.  If you're on go1.1+ you can now just use `godep get github.com/bitly/nsq/...`.
+dependencies.  If you're on go1.1+ you can now just use `godep get github.com/deepglint/nsq/...`.
 
 This release includes `nsqd` protocol compression feature negotiation.
 [Snappy](https://code.google.com/p/snappy/) and [Deflate](http://en.wikipedia.org/wiki/DEFLATE) are
@@ -464,7 +464,7 @@ removed in a future release.
 
 ## go-nsq Client Library
 
- * #264 moved **go-nsq** to its own [repository](https://github.com/bitly/go-nsq)
+ * #264 moved **go-nsq** to its own [repository](https://github.com/deepglint/go-nsq)
 
 ## pynsq Python Client Library
 
