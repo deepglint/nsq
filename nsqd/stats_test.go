@@ -10,9 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bmizerany/assert"
-	"github.com/deepglint/go-nsq"
 	"github.com/deepglint/nsq/util"
+	"github.com/bmizerany/assert"
 	"github.com/mreiferson/go-snappystream"
 )
 
@@ -26,13 +25,13 @@ func TestStats(t *testing.T) {
 
 	topicName := "test_stats" + strconv.Itoa(int(time.Now().Unix()))
 	topic := nsqd.GetTopic(topicName)
-	msg := nsq.NewMessage(<-nsqd.idChan, []byte("test body"))
+	msg := NewMessage(<-nsqd.idChan, []byte("test body"))
 	topic.PutMessage(msg)
 
 	conn, err := mustConnectNSQD(tcpAddr)
 	assert.Equal(t, err, nil)
 
-	identify(t, conn, nil, nsq.FrameTypeResponse)
+	identify(t, conn, nil, frameTypeResponse)
 	sub(t, conn, topicName, "ch")
 
 	stats := nsqd.GetStats()
@@ -60,7 +59,7 @@ func TestClientAttributes(t *testing.T) {
 	data := identify(t, conn, map[string]interface{}{
 		"snappy":     true,
 		"user_agent": userAgent,
-	}, nsq.FrameTypeResponse)
+	}, frameTypeResponse)
 	resp := struct {
 		Snappy    bool   `json:"snappy"`
 		UserAgent string `json:"user_agent"`
@@ -71,16 +70,14 @@ func TestClientAttributes(t *testing.T) {
 
 	r := snappystream.NewReader(conn, snappystream.SkipVerifyChecksum)
 	w := snappystream.NewWriter(conn)
+	readValidate(t, r, frameTypeResponse, "OK")
 
 	topicName := "test_client_attributes" + strconv.Itoa(int(time.Now().Unix()))
 	sub(t, readWriter{r, w}, topicName, "ch")
 
-	// need to give nsqd a chance to sub the client
-	time.Sleep(50 * time.Millisecond)
-
 	testUrl := fmt.Sprintf("http://127.0.0.1:%d/stats?format=json", httpAddr.Port)
 
-	statsData, err := util.ApiRequest(testUrl)
+	statsData, err := util.APIRequestNegotiateV1("GET", testUrl, nil)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}

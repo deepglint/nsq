@@ -12,11 +12,19 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/deepglint/go-nsq"
+	"github.com/deepglint/nsq/util/auth"
 	"github.com/mreiferson/go-snappystream"
 )
 
-const DefaultBufferSize = 16 * 1024
+const defaultBufferSize = 16 * 1024
+
+const (
+	stateInit = iota
+	stateDisconnected
+	stateConnected
+	stateSubscribed
+	stateClosing
+)
 
 type identifyDataV2 struct {
 	ShortId string `json:"short_id"` // TODO: deprecated, remove in 1.0
@@ -98,6 +106,9 @@ type clientV2 struct {
 	// re-usable buffer for reading the 4-byte lengths off the wire
 	lenBuf   [4]byte
 	lenSlice []byte
+
+	AuthSecret string
+	AuthState  *auth.AuthState
 }
 
 func newClientV2(id int64, conn net.Conn, context *context) *clientV2 {
@@ -112,10 +123,10 @@ func newClientV2(id int64, conn net.Conn, context *context) *clientV2 {
 
 		Conn: conn,
 
-		Reader: bufio.NewReaderSize(conn, DefaultBufferSize),
-		Writer: bufio.NewWriterSize(conn, DefaultBufferSize),
+		Reader: bufio.NewReaderSize(conn, defaultBufferSize),
+		Writer: bufio.NewWriterSize(conn, defaultBufferSize),
 
-		OutputBufferSize:    DefaultBufferSize,
+		OutputBufferSize:    defaultBufferSize,
 		OutputBufferTimeout: 250 * time.Millisecond,
 
 		MsgTimeout: context.nsqd.options.MsgTimeout,
@@ -125,7 +136,7 @@ func newClientV2(id int64, conn net.Conn, context *context) *clientV2 {
 		ReadyStateChan: make(chan int, 1),
 		ExitChan:       make(chan int),
 		ConnectTime:    time.Now(),
-		State:          nsq.StateInit,
+		State:          stateInit,
 
 		ClientID: identifier,
 		Hostname: identifier,
@@ -145,6 +156,8 @@ func (c *clientV2) String() string {
 }
 
 func (c *clientV2) Identify(data identifyDataV2) error {
+	log.Printf("[%s] IDENTIFY: %+v", c, data)
+
 	// TODO: for backwards compatibility, remove in 1.0
 	hostname := data.Hostname
 	if hostname == "" {
@@ -211,28 +224,103 @@ func (c *clientV2) Stats() ClientStats {
 	clientId := c.ClientID
 	hostname := c.Hostname
 	userAgent := c.UserAgent
+	var identity string
+	var identityUrl string
+	if c.AuthState != nil {
+		identity = c.AuthState.Identity
+		identityUrl = c.AuthState.IdentityUrl
+	}
 	c.RUnlock()
-	return ClientStats{
+	stats := ClientStats{
 		// TODO: deprecated, remove in 1.0
 		Name: name,
 
-		Version:       "V2",
-		RemoteAddress: c.RemoteAddr().String(),
-		ClientID:      clientId,
-		Hostname:      hostname,
-		UserAgent:     userAgent,
-		State:         atomic.LoadInt32(&c.State),
-		ReadyCount:    atomic.LoadInt64(&c.ReadyCount),
-		InFlightCount: atomic.LoadInt64(&c.InFlightCount),
-		MessageCount:  atomic.LoadUint64(&c.MessageCount),
-		FinishCount:   atomic.LoadUint64(&c.FinishCount),
-		RequeueCount:  atomic.LoadUint64(&c.RequeueCount),
-		ConnectTime:   c.ConnectTime.Unix(),
-		SampleRate:    atomic.LoadInt32(&c.SampleRate),
-		TLS:           atomic.LoadInt32(&c.TLS) == 1,
-		Deflate:       atomic.LoadInt32(&c.Deflate) == 1,
-		Snappy:        atomic.LoadInt32(&c.Snappy) == 1,
+		Version:         "V2",
+		RemoteAddress:   c.RemoteAddr().String(),
+		ClientID:        clientId,
+		Hostname:        hostname,
+		UserAgent:       userAgent,
+		State:           atomic.LoadInt32(&c.State),
+		ReadyCount:      atomic.LoadInt64(&c.ReadyCount),
+		InFlightCount:   atomic.LoadInt64(&c.InFlightCount),
+		MessageCount:    atomic.LoadUint64(&c.MessageCount),
+		FinishCount:     atomic.LoadUint64(&c.FinishCount),
+		RequeueCount:    atomic.LoadUint64(&c.RequeueCount),
+		ConnectTime:     c.ConnectTime.Unix(),
+		SampleRate:      atomic.LoadInt32(&c.SampleRate),
+		TLS:             atomic.LoadInt32(&c.TLS) == 1,
+		Deflate:         atomic.LoadInt32(&c.Deflate) == 1,
+		Snappy:          atomic.LoadInt32(&c.Snappy) == 1,
+		Authed:          c.HasAuthorizations(),
+		AuthIdentity:    identity,
+		AuthIdentityURL: identityUrl,
 	}
+	if stats.TLS {
+		p := prettyConnectionState{c.tlsConn.ConnectionState()}
+		stats.CipherSuite = p.GetCipherSuite()
+		stats.TLSVersion = p.GetVersion()
+		stats.TLSNegotiatedProtocol = p.NegotiatedProtocol
+		stats.TLSNegotiatedProtocolIsMutual = p.NegotiatedProtocolIsMutual
+	}
+	return stats
+}
+
+// struct to convert from integers to the human readable strings
+type prettyConnectionState struct {
+	tls.ConnectionState
+}
+
+// taken from http://golang.org/src/pkg/crypto/tls/cipher_suites.go
+// to be compatible with older versions
+const (
+	local_TLS_RSA_WITH_RC4_128_SHA                uint16 = 0x0005
+	local_TLS_RSA_WITH_3DES_EDE_CBC_SHA           uint16 = 0x000a
+	local_TLS_RSA_WITH_AES_128_CBC_SHA            uint16 = 0x002f
+	local_TLS_RSA_WITH_AES_256_CBC_SHA            uint16 = 0x0035
+	local_TLS_ECDHE_ECDSA_WITH_RC4_128_SHA        uint16 = 0xc007
+	local_TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA    uint16 = 0xc009
+	local_TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA    uint16 = 0xc00a
+	local_TLS_ECDHE_RSA_WITH_RC4_128_SHA          uint16 = 0xc011
+	local_TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA     uint16 = 0xc012
+	local_TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA      uint16 = 0xc013
+	local_TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA      uint16 = 0xc014
+	local_TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256   uint16 = 0xc02f
+	local_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 uint16 = 0xc02b
+)
+
+func (p *prettyConnectionState) GetCipherSuite() string {
+	switch p.CipherSuite {
+	case local_TLS_RSA_WITH_RC4_128_SHA:
+		return "TLS_RSA_WITH_RC4_128_SHA"
+	case local_TLS_RSA_WITH_3DES_EDE_CBC_SHA:
+		return "TLS_RSA_WITH_3DES_EDE_CBC_SHA"
+	case local_TLS_RSA_WITH_AES_128_CBC_SHA:
+		return "TLS_RSA_WITH_AES_128_CBC_SHA"
+	case local_TLS_RSA_WITH_AES_256_CBC_SHA:
+		return "TLS_RSA_WITH_AES_256_CBC_SHA"
+	case local_TLS_ECDHE_ECDSA_WITH_RC4_128_SHA:
+		return "TLS_ECDHE_ECDSA_WITH_RC4_128_SHA"
+	case local_TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA:
+		return "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA"
+	case local_TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA:
+		return "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA"
+	case local_TLS_ECDHE_RSA_WITH_RC4_128_SHA:
+		return "TLS_ECDHE_RSA_WITH_RC4_128_SHA"
+	case local_TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA:
+		return "TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA"
+	case local_TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA:
+		return "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"
+	case local_TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:
+		return "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA"
+	case local_TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256:
+		return "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+	case local_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256:
+		return "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"
+	default:
+		return fmt.Sprintf("unkown %d", p.CipherSuite)
+	}
+	// this is for Go 1.0 compatability
+	return "unknown"
 }
 
 func (c *clientV2) IsReadyForMessages() bool {
@@ -304,7 +392,7 @@ func (c *clientV2) StartClose() {
 	// Force the client into ready 0
 	c.SetReadyCount(0)
 	// mark this client as closing
-	atomic.StoreInt32(&c.State, nsq.StateClosing)
+	atomic.StoreInt32(&c.State, stateClosing)
 }
 
 func (c *clientV2) Pause() {
@@ -419,7 +507,7 @@ func (c *clientV2) UpgradeTLS() error {
 	}
 	c.tlsConn = tlsConn
 
-	c.Reader = bufio.NewReaderSize(c.tlsConn, DefaultBufferSize)
+	c.Reader = bufio.NewReaderSize(c.tlsConn, defaultBufferSize)
 	c.Writer = bufio.NewWriterSize(c.tlsConn, c.OutputBufferSize)
 
 	atomic.StoreInt32(&c.TLS, 1)
@@ -436,7 +524,7 @@ func (c *clientV2) UpgradeDeflate(level int) error {
 		conn = c.tlsConn
 	}
 
-	c.Reader = bufio.NewReaderSize(flate.NewReader(conn), DefaultBufferSize)
+	c.Reader = bufio.NewReaderSize(flate.NewReader(conn), defaultBufferSize)
 
 	fw, _ := flate.NewWriter(conn, level)
 	c.flateWriter = fw
@@ -456,7 +544,7 @@ func (c *clientV2) UpgradeSnappy() error {
 		conn = c.tlsConn
 	}
 
-	c.Reader = bufio.NewReaderSize(snappystream.NewReader(conn, snappystream.SkipVerifyChecksum), DefaultBufferSize)
+	c.Reader = bufio.NewReaderSize(snappystream.NewReader(conn, snappystream.SkipVerifyChecksum), defaultBufferSize)
 	c.Writer = bufio.NewWriterSize(snappystream.NewWriter(conn), c.OutputBufferSize)
 
 	atomic.StoreInt32(&c.Snappy, 1)
@@ -482,4 +570,53 @@ func (c *clientV2) Flush() error {
 	}
 
 	return nil
+}
+
+func (c *clientV2) QueryAuthd() error {
+	remoteIp, _, err := net.SplitHostPort(c.String())
+	if err != nil {
+		return err
+	}
+
+	tls := atomic.LoadInt32(&c.TLS) == 1
+	tlsEnabled := "false"
+	if tls {
+		tlsEnabled = "true"
+	}
+
+	authState, err := auth.QueryAnyAuthd(c.context.nsqd.options.AuthHTTPAddresses,
+		remoteIp, tlsEnabled, c.AuthSecret)
+	if err != nil {
+		return err
+	}
+	c.AuthState = authState
+	return nil
+}
+
+func (c *clientV2) Auth(secret string) error {
+	c.AuthSecret = secret
+	return c.QueryAuthd()
+}
+
+func (c *clientV2) IsAuthorized(topic, channel string) (bool, error) {
+	if c.AuthState == nil {
+		return false, nil
+	}
+	if c.AuthState.IsExpired() {
+		err := c.QueryAuthd()
+		if err != nil {
+			return false, err
+		}
+	}
+	if c.AuthState.IsAllowed(topic, channel) {
+		return true, nil
+	}
+	return false, nil
+}
+
+func (c *clientV2) HasAuthorizations() bool {
+	if c.AuthState != nil {
+		return len(c.AuthState.Authorizations) != 0
+	}
+	return false
 }

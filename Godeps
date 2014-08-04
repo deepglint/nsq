@@ -19,8 +19,8 @@
 		},
 		{
 			"ImportPath": "github.com/deepglint/go-nsq",
-			"Comment": "v0.3.6",
-			"Rev": "1bebffb09ebaf4746a2cd23c85fdd1fd5beae092"
+			"Comment": "v1.0.0-alpha",
+			"Rev": "15045438e48e3f0bb674b7aff030d09c03ba9ae3"
 		},
 		{
 			"ImportPath": "github.com/bitly/go-simplejson",

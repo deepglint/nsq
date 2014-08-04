@@ -155,6 +155,7 @@ func (c *ChannelStats) Host() string {
 
 type ClientStats struct {
 	HostAddress       string
+	RemoteAddress     string
 	Version           string
 	ClientID          string
 	Hostname          string
@@ -166,9 +167,17 @@ type ClientStats struct {
 	RequeueCount      int64
 	MessageCount      int64
 	SampleRate        int32
-	TLS               bool
 	Deflate           bool
 	Snappy            bool
+	Authed            bool
+	AuthIdentity      string
+	AuthIdentityUrl   string
+
+	TLS                           bool
+	CipherSuite                   string `json:"tls_cipher_suite"`
+	TLSVersion                    string `json:"tls_version"`
+	TLSNegotiatedProtocol         string `json:"tls_negotiated_protocol"`
+	TLSNegotiatedProtocolIsMutual bool   `json:"tls_negotiated_protocol_is_mutual"`
 }
 
 func (c *ClientStats) HasUserAgent() bool {

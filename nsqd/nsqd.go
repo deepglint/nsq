@@ -15,10 +15,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/bitly/go-simplejson"
-	"github.com/deepglint/go-nsq"
 	"github.com/deepglint/nsq/util"
 	"github.com/deepglint/nsq/util/lookupd"
 )
@@ -30,6 +30,9 @@ type NSQD struct {
 	sync.RWMutex
 
 	options *nsqdOptions
+
+	healthy int32
+	err     error
 
 	topicMap map[string]*Topic
 
@@ -43,7 +46,7 @@ type NSQD struct {
 	httpsListener net.Listener
 	tlsConfig     *tls.Config
 
-	idChan     chan nsq.MessageID
+	idChan     chan MessageID
 	notifyChan chan interface{}
 	exitChan   chan int
 	waitGroup  util.WaitGroupWrapper
@@ -85,11 +88,12 @@ func NewNSQD(options *nsqdOptions) *NSQD {
 
 	n := &NSQD{
 		options:    options,
+		healthy:    1,
 		tcpAddr:    tcpAddr,
 		httpAddr:   httpAddr,
 		httpsAddr:  httpsAddr,
 		topicMap:   make(map[string]*Topic),
-		idChan:     make(chan nsq.MessageID, 4096),
+		idChan:     make(chan MessageID, 4096),
 		exitChan:   make(chan int),
 		notifyChan: make(chan interface{}),
 		tlsConfig:  buildTLSConfig(options),
@@ -98,6 +102,34 @@ func NewNSQD(options *nsqdOptions) *NSQD {
 	n.waitGroup.Wrap(func() { n.idPump() })
 
 	return n
+}
+
+func (n *NSQD) SetHealth(err error) {
+	n.Lock()
+	defer n.Unlock()
+	n.err = err
+	if err != nil {
+		atomic.StoreInt32(&n.healthy, 0)
+	} else {
+		atomic.StoreInt32(&n.healthy, 1)
+	}
+}
+
+func (n *NSQD) IsHealthy() bool {
+	return atomic.LoadInt32(&n.healthy) == 1
+}
+
+func (n *NSQD) GetError() error {
+	n.RLock()
+	defer n.RUnlock()
+	return n.err
+}
+
+func (n *NSQD) GetHealth() string {
+	if !n.IsHealthy() {
+		return fmt.Sprintf("NOK - %s", n.GetError())
+	}
+	return "OK"
 }
 
 func (n *NSQD) Main() {
@@ -184,7 +216,7 @@ func (n *NSQD) LoadMetadata() {
 			log.Printf("ERROR: failed to parse metadata - %s", err.Error())
 			return
 		}
-		if !nsq.IsValidTopicName(topicName) {
+		if !util.IsValidTopicName(topicName) {
 			log.Printf("WARNING: skipping creation of invalid topic %s", topicName)
 			continue
 		}
@@ -209,7 +241,7 @@ func (n *NSQD) LoadMetadata() {
 				log.Printf("ERROR: failed to parse metadata - %s", err.Error())
 				return
 			}
-			if !nsq.IsValidChannelName(channelName) {
+			if !util.IsValidChannelName(channelName) {
 				log.Printf("WARNING: skipping creation of invalid channel %s", channelName)
 				continue
 			}
@@ -472,4 +504,8 @@ func buildTLSConfig(options *nsqdOptions) *tls.Config {
 	tlsConfig.BuildNameToCertificate()
 
 	return tlsConfig
+}
+
+func (n *NSQD) IsAuthEnabled() bool {
+	return len(n.options.AuthHTTPAddresses) != 0
 }

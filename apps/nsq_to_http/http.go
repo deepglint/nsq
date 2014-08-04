@@ -5,15 +5,14 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/deepglint/go-nsq"
-	"github.com/deepglint/nsq/util"
+	"github.com/bitly/nsq/util"
 )
 
 var httpclient *http.Client
 var userAgent string
 
 func init() {
-	httpclient = &http.Client{Transport: nsq.NewDeadlineTransport(*httpTimeout)}
+	httpclient = &http.Client{Transport: util.NewDeadlineTransport(*httpTimeout)}
 	userAgent = fmt.Sprintf("nsq_to_http v%s", util.BINARY_VERSION)
 }
 

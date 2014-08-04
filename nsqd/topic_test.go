@@ -1,6 +1,7 @@
 package nsqd
 
 import (
+	"errors"
 	"io/ioutil"
 	"log"
 	"os"
@@ -10,7 +11,6 @@ import (
 	"time"
 
 	"github.com/bmizerany/assert"
-	"github.com/deepglint/go-nsq"
 )
 
 func TestGetTopic(t *testing.T) {
@@ -49,6 +49,34 @@ func TestGetChannel(t *testing.T) {
 
 	assert.Equal(t, channel1, topic.channelMap["ch1"])
 	assert.Equal(t, channel2, topic.channelMap["ch2"])
+}
+
+func TestHealth(t *testing.T) {
+	log.SetOutput(ioutil.Discard)
+	defer log.SetOutput(os.Stdout)
+
+	_, _, nsqd := mustStartNSQD(NewNSQDOptions())
+	defer nsqd.Exit()
+
+	topic := nsqd.GetTopic("test")
+
+	msg := NewMessage(<-nsqd.idChan, make([]byte, 100))
+	err := topic.PutMessage(msg)
+	assert.Equal(t, err, nil)
+
+	msg = NewMessage(<-nsqd.idChan, make([]byte, 100))
+	err = topic.PutMessages([]*Message{msg})
+	assert.Equal(t, err, nil)
+
+	nsqd.SetHealth(errors.New("broken"))
+
+	msg = NewMessage(<-nsqd.idChan, make([]byte, 100))
+	err = topic.PutMessage(msg)
+	assert.NotEqual(t, err, nil)
+
+	msg = NewMessage(<-nsqd.idChan, make([]byte, 100))
+	err = topic.PutMessages([]*Message{msg})
+	assert.NotEqual(t, err, nil)
 }
 
 func TestDeletes(t *testing.T) {
@@ -92,7 +120,7 @@ func TestDeleteLast(t *testing.T) {
 	assert.Equal(t, nil, err)
 	assert.Equal(t, 0, len(topic.channelMap))
 
-	msg := nsq.NewMessage(<-nsqd.idChan, []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+	msg := NewMessage(<-nsqd.idChan, []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaa"))
 	err = topic.PutMessage(msg)
 	time.Sleep(100 * time.Millisecond)
 	assert.Equal(t, nil, err)
@@ -114,7 +142,7 @@ func TestPause(t *testing.T) {
 	channel := topic.GetChannel("ch1")
 	assert.NotEqual(t, channel, nil)
 
-	msg := nsq.NewMessage(<-nsqd.idChan, []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+	msg := NewMessage(<-nsqd.idChan, []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaa"))
 	err = topic.PutMessage(msg)
 	assert.Equal(t, err, nil)
 
@@ -145,7 +173,7 @@ func BenchmarkTopicPut(b *testing.B) {
 
 	for i := 0; i <= b.N; i++ {
 		topic := nsqd.GetTopic(topicName)
-		msg := nsq.NewMessage(<-nsqd.idChan, []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+		msg := NewMessage(<-nsqd.idChan, []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaa"))
 		topic.PutMessage(msg)
 	}
 }
@@ -165,7 +193,7 @@ func BenchmarkTopicToChannelPut(b *testing.B) {
 
 	for i := 0; i <= b.N; i++ {
 		topic := nsqd.GetTopic(topicName)
-		msg := nsq.NewMessage(<-nsqd.idChan, []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+		msg := NewMessage(<-nsqd.idChan, []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaa"))
 		topic.PutMessage(msg)
 	}
 

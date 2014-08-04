@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -14,11 +15,16 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/deepglint/go-nsq"
 	"github.com/deepglint/nsq/util"
 )
 
 const maxTimeout = time.Hour
+
+const (
+	frameTypeResponse int32 = 0
+	frameTypeError    int32 = 1
+	frameTypeMessage  int32 = 2
+)
 
 var separatorBytes = []byte(" ")
 var heartbeatBytes = []byte("_heartbeat_")
@@ -79,7 +85,7 @@ func (p *protocolV2) IOLoop(conn net.Conn) error {
 			}
 			log.Printf("ERROR: [%s] - %s%s", client, err.Error(), context)
 
-			sendErr := p.Send(client, nsq.FrameTypeError, []byte(err.Error()))
+			sendErr := p.Send(client, frameTypeError, []byte(err.Error()))
 			if sendErr != nil {
 				break
 			}
@@ -92,7 +98,7 @@ func (p *protocolV2) IOLoop(conn net.Conn) error {
 		}
 
 		if response != nil {
-			err = p.Send(client, nsq.FrameTypeResponse, response)
+			err = p.Send(client, frameTypeResponse, response)
 			if err != nil {
 				break
 			}
@@ -109,19 +115,19 @@ func (p *protocolV2) IOLoop(conn net.Conn) error {
 	return err
 }
 
-func (p *protocolV2) SendMessage(client *clientV2, msg *nsq.Message, buf *bytes.Buffer) error {
+func (p *protocolV2) SendMessage(client *clientV2, msg *Message, buf *bytes.Buffer) error {
 	if p.context.nsqd.options.Verbose {
 		log.Printf("PROTOCOL(V2): writing msg(%s) to client(%s) - %s",
-			msg.Id, client, msg.Body)
+			msg.ID, client, msg.Body)
 	}
 
 	buf.Reset()
-	err := msg.Write(buf)
+	_, err := msg.WriteTo(buf)
 	if err != nil {
 		return err
 	}
 
-	err = p.Send(client, nsq.FrameTypeMessage, buf.Bytes())
+	err = p.Send(client, frameTypeMessage, buf.Bytes())
 	if err != nil {
 		return err
 	}
@@ -145,7 +151,7 @@ func (p *protocolV2) Send(client *clientV2, frameType int32, data []byte) error 
 		return err
 	}
 
-	if frameType != nsq.FrameTypeMessage {
+	if frameType != frameTypeMessage {
 		err = client.Flush()
 	}
 
@@ -181,6 +187,8 @@ func (p *protocolV2) Exec(client *clientV2, params [][]byte) ([]byte, error) {
 		return p.SUB(client, params)
 	case bytes.Equal(params[0], []byte("CLS")):
 		return p.CLS(client, params)
+	case bytes.Equal(params[0], []byte("AUTH")):
+		return p.AUTH(client, params)
 	}
 	return nil, util.NewFatalClientErr(nil, "E_INVALID", fmt.Sprintf("invalid command %s", params[0]))
 }
@@ -188,7 +196,7 @@ func (p *protocolV2) Exec(client *clientV2, params [][]byte) ([]byte, error) {
 func (p *protocolV2) messagePump(client *clientV2, startedChan chan bool) {
 	var err error
 	var buf bytes.Buffer
-	var clientMsgChan chan *nsq.Message
+	var clientMsgChan chan *Message
 	var subChannel *Channel
 	// NOTE: `flusherChan` is used to bound message latency for
 	// the pathological case of a channel on a low volume topic
@@ -278,7 +286,7 @@ func (p *protocolV2) messagePump(client *clientV2, startedChan chan bool) {
 
 			msgTimeout = identifyData.MsgTimeout
 		case <-heartbeatChan:
-			err = p.Send(client, nsq.FrameTypeResponse, heartbeatBytes)
+			err = p.Send(client, frameTypeResponse, heartbeatBytes)
 			if err != nil {
 				goto exit
 			}
@@ -315,7 +323,7 @@ exit:
 func (p *protocolV2) IDENTIFY(client *clientV2, params [][]byte) ([]byte, error) {
 	var err error
 
-	if atomic.LoadInt32(&client.State) != nsq.StateInit {
+	if atomic.LoadInt32(&client.State) != stateInit {
 		return nil, util.NewFatalClientErr(nil, "E_INVALID", "cannot IDENTIFY in current state")
 	}
 
@@ -382,23 +390,25 @@ func (p *protocolV2) IDENTIFY(client *clientV2, params [][]byte) ([]byte, error)
 		MaxDeflateLevel int    `json:"max_deflate_level"`
 		Snappy          bool   `json:"snappy"`
 		SampleRate      int32  `json:"sample_rate"`
+		AuthRequired    bool   `json:"auth_required"`
 	}{
 		MaxRdyCount:     p.context.nsqd.options.MaxRdyCount,
 		Version:         util.BINARY_VERSION,
 		MaxMsgTimeout:   int64(p.context.nsqd.options.MaxMsgTimeout / time.Millisecond),
-		MsgTimeout:      int64(p.context.nsqd.options.MsgTimeout / time.Millisecond),
+		MsgTimeout:      int64(client.MsgTimeout / time.Millisecond),
 		TLSv1:           tlsv1,
 		Deflate:         deflate,
 		DeflateLevel:    deflateLevel,
 		MaxDeflateLevel: p.context.nsqd.options.MaxDeflateLevel,
 		Snappy:          snappy,
 		SampleRate:      client.SampleRate,
+		AuthRequired:    p.context.nsqd.IsAuthEnabled(),
 	})
 	if err != nil {
 		return nil, util.NewFatalClientErr(err, "E_IDENTIFY_FAILED", "IDENTIFY failed "+err.Error())
 	}
 
-	err = p.Send(client, nsq.FrameTypeResponse, resp)
+	err = p.Send(client, frameTypeResponse, resp)
 	if err != nil {
 		return nil, util.NewFatalClientErr(err, "E_IDENTIFY_FAILED", "IDENTIFY failed "+err.Error())
 	}
@@ -410,7 +420,7 @@ func (p *protocolV2) IDENTIFY(client *clientV2, params [][]byte) ([]byte, error)
 			return nil, util.NewFatalClientErr(err, "E_IDENTIFY_FAILED", "IDENTIFY failed "+err.Error())
 		}
 
-		err = p.Send(client, nsq.FrameTypeResponse, okBytes)
+		err = p.Send(client, frameTypeResponse, okBytes)
 		if err != nil {
 			return nil, util.NewFatalClientErr(err, "E_IDENTIFY_FAILED", "IDENTIFY failed "+err.Error())
 		}
@@ -423,7 +433,7 @@ func (p *protocolV2) IDENTIFY(client *clientV2, params [][]byte) ([]byte, error)
 			return nil, util.NewFatalClientErr(err, "E_IDENTIFY_FAILED", "IDENTIFY failed "+err.Error())
 		}
 
-		err = p.Send(client, nsq.FrameTypeResponse, okBytes)
+		err = p.Send(client, frameTypeResponse, okBytes)
 		if err != nil {
 			return nil, util.NewFatalClientErr(err, "E_IDENTIFY_FAILED", "IDENTIFY failed "+err.Error())
 		}
@@ -436,7 +446,7 @@ func (p *protocolV2) IDENTIFY(client *clientV2, params [][]byte) ([]byte, error)
 			return nil, util.NewFatalClientErr(err, "E_IDENTIFY_FAILED", "IDENTIFY failed "+err.Error())
 		}
 
-		err = p.Send(client, nsq.FrameTypeResponse, okBytes)
+		err = p.Send(client, frameTypeResponse, okBytes)
 		if err != nil {
 			return nil, util.NewFatalClientErr(err, "E_IDENTIFY_FAILED", "IDENTIFY failed "+err.Error())
 		}
@@ -445,8 +455,95 @@ func (p *protocolV2) IDENTIFY(client *clientV2, params [][]byte) ([]byte, error)
 	return nil, nil
 }
 
+func (p *protocolV2) AUTH(client *clientV2, params [][]byte) ([]byte, error) {
+	if atomic.LoadInt32(&client.State) != stateInit {
+		return nil, util.NewFatalClientErr(nil, "E_INVALID", "cannot AUTH in current state")
+	}
+
+	if len(params) != 1 {
+		return nil, util.NewFatalClientErr(nil, "E_INVALID", "AUTH invalid number of parameters")
+	}
+
+	bodyLen, err := readLen(client.Reader, client.lenSlice)
+	if err != nil {
+		return nil, util.NewFatalClientErr(err, "E_BAD_BODY", "AUTH failed to read body size")
+	}
+
+	if int64(bodyLen) > p.context.nsqd.options.MaxBodySize {
+		return nil, util.NewFatalClientErr(nil, "E_BAD_BODY",
+			fmt.Sprintf("AUTH body too big %d > %d", bodyLen, p.context.nsqd.options.MaxBodySize))
+	}
+
+	body := make([]byte, bodyLen)
+	_, err = io.ReadFull(client.Reader, body)
+	if err != nil {
+		return nil, util.NewFatalClientErr(err, "E_BAD_BODY", "AUTH failed to read body")
+	}
+
+	if client.HasAuthorizations() {
+		return nil, util.NewFatalClientErr(nil, "E_INVALID", "AUTH Already set")
+	}
+
+	if !client.context.nsqd.IsAuthEnabled() {
+		return nil, util.NewFatalClientErr(err, "E_AUTH_DISABLED", "AUTH Disabled")
+	}
+
+	if err := client.Auth(string(body)); err != nil {
+		// we don't want to leak errors contacting the auth server to untrusted clients
+		log.Printf("PROTOCOL(V2): [%s] Auth Failed %s", client, err)
+		return nil, util.NewFatalClientErr(err, "E_AUTH_FAILED", "AUTH failed")
+	}
+
+	if !client.HasAuthorizations() {
+		return nil, util.NewFatalClientErr(nil, "E_UNAUTHORIZED", "AUTH No authorizations found")
+	}
+
+	resp, err := json.Marshal(struct {
+		Identity        string `json:"identity"`
+		IdentityUrl     string `json:"identity_url"`
+		PermissionCount int    `json:"permission_count"`
+	}{
+		Identity:        client.AuthState.Identity,
+		IdentityUrl:     client.AuthState.IdentityUrl,
+		PermissionCount: len(client.AuthState.Authorizations),
+	})
+	if err != nil {
+		return nil, util.NewFatalClientErr(err, "E_AUTH_ERROR", "AUTH error "+err.Error())
+	}
+
+	err = p.Send(client, frameTypeResponse, resp)
+	if err != nil {
+		return nil, util.NewFatalClientErr(err, "E_AUTH_ERROR", "AUTH error "+err.Error())
+	}
+
+	return nil, nil
+
+}
+
+func (p *protocolV2) CheckAuth(client *clientV2, cmd, topicName, channelName string) error {
+	// if auth is enabled, the client must have authorized already
+	// compare topic/channel against cached authorization data (refetching if expired)
+	if client.context.nsqd.IsAuthEnabled() {
+		if !client.HasAuthorizations() {
+			return util.NewFatalClientErr(nil, "E_AUTH_FIRST",
+				fmt.Sprintf("AUTH required before %s", cmd))
+		}
+		ok, err := client.IsAuthorized(topicName, channelName)
+		if err != nil {
+			// we don't want to leak errors contacting the auth server to untrusted clients
+			log.Printf("PROTOCOL(V2): [%s] Auth Failed %s", client, err)
+			return util.NewFatalClientErr(nil, "E_AUTH_FAILED", "AUTH failed")
+		}
+		if !ok {
+			return util.NewFatalClientErr(nil, "E_UNAUTHORIZED",
+				fmt.Sprintf("AUTH failed for %s on %q %q", cmd, topicName, channelName))
+		}
+	}
+	return nil
+}
+
 func (p *protocolV2) SUB(client *clientV2, params [][]byte) ([]byte, error) {
-	if atomic.LoadInt32(&client.State) != nsq.StateInit {
+	if atomic.LoadInt32(&client.State) != stateInit {
 		return nil, util.NewFatalClientErr(nil, "E_INVALID", "cannot SUB in current state")
 	}
 
@@ -459,22 +556,26 @@ func (p *protocolV2) SUB(client *clientV2, params [][]byte) ([]byte, error) {
 	}
 
 	topicName := string(params[1])
-	if !nsq.IsValidTopicName(topicName) {
+	if !util.IsValidTopicName(topicName) {
 		return nil, util.NewFatalClientErr(nil, "E_BAD_TOPIC",
-			fmt.Sprintf("SUB topic name '%s' is not valid", topicName))
+			fmt.Sprintf("SUB topic name %q is not valid", topicName))
 	}
 
 	channelName := string(params[2])
-	if !nsq.IsValidChannelName(channelName) {
+	if !util.IsValidChannelName(channelName) {
 		return nil, util.NewFatalClientErr(nil, "E_BAD_CHANNEL",
-			fmt.Sprintf("SUB channel name '%s' is not valid", channelName))
+			fmt.Sprintf("SUB channel name %q is not valid", channelName))
+	}
+
+	if err := p.CheckAuth(client, "SUB", topicName, channelName); err != nil {
+		return nil, err
 	}
 
 	topic := p.context.nsqd.GetTopic(topicName)
 	channel := topic.GetChannel(channelName)
 	channel.AddClient(client.ID, client)
 
-	atomic.StoreInt32(&client.State, nsq.StateSubscribed)
+	atomic.StoreInt32(&client.State, stateSubscribed)
 	client.Channel = channel
 	// update message pump
 	client.SubEventChan <- channel
@@ -485,13 +586,13 @@ func (p *protocolV2) SUB(client *clientV2, params [][]byte) ([]byte, error) {
 func (p *protocolV2) RDY(client *clientV2, params [][]byte) ([]byte, error) {
 	state := atomic.LoadInt32(&client.State)
 
-	if state == nsq.StateClosing {
+	if state == stateClosing {
 		// just ignore ready changes on a closing channel
 		log.Printf("PROTOCOL(V2): [%s] ignoring RDY after CLS in state ClientStateV2Closing", client)
 		return nil, nil
 	}
 
-	if state != nsq.StateSubscribed {
+	if state != stateSubscribed {
 		return nil, util.NewFatalClientErr(nil, "E_INVALID", "cannot RDY in current state")
 	}
 
@@ -519,7 +620,7 @@ func (p *protocolV2) RDY(client *clientV2, params [][]byte) ([]byte, error) {
 
 func (p *protocolV2) FIN(client *clientV2, params [][]byte) ([]byte, error) {
 	state := atomic.LoadInt32(&client.State)
-	if state != nsq.StateSubscribed && state != nsq.StateClosing {
+	if state != stateSubscribed && state != stateClosing {
 		return nil, util.NewFatalClientErr(nil, "E_INVALID", "cannot FIN in current state")
 	}
 
@@ -527,11 +628,15 @@ func (p *protocolV2) FIN(client *clientV2, params [][]byte) ([]byte, error) {
 		return nil, util.NewFatalClientErr(nil, "E_INVALID", "FIN insufficient number of params")
 	}
 
-	id := *(*nsq.MessageID)(unsafe.Pointer(&params[1][0]))
-	err := client.Channel.FinishMessage(client.ID, id)
+	id, err := getMessageId(params[1])
+	if err != nil {
+		return nil, util.NewFatalClientErr(nil, "E_INVALID", err.Error())
+	}
+
+	err = client.Channel.FinishMessage(client.ID, *id)
 	if err != nil {
 		return nil, util.NewClientErr(err, "E_FIN_FAILED",
-			fmt.Sprintf("FIN %s failed %s", id, err.Error()))
+			fmt.Sprintf("FIN %s failed %s", *id, err.Error()))
 	}
 
 	client.FinishedMessage()
@@ -541,7 +646,7 @@ func (p *protocolV2) FIN(client *clientV2, params [][]byte) ([]byte, error) {
 
 func (p *protocolV2) REQ(client *clientV2, params [][]byte) ([]byte, error) {
 	state := atomic.LoadInt32(&client.State)
-	if state != nsq.StateSubscribed && state != nsq.StateClosing {
+	if state != stateSubscribed && state != stateClosing {
 		return nil, util.NewFatalClientErr(nil, "E_INVALID", "cannot REQ in current state")
 	}
 
@@ -549,7 +654,11 @@ func (p *protocolV2) REQ(client *clientV2, params [][]byte) ([]byte, error) {
 		return nil, util.NewFatalClientErr(nil, "E_INVALID", "REQ insufficient number of params")
 	}
 
-	id := *(*nsq.MessageID)(unsafe.Pointer(&params[1][0]))
+	id, err := getMessageId(params[1])
+	if err != nil {
+		return nil, util.NewFatalClientErr(nil, "E_INVALID", err.Error())
+	}
+
 	timeoutMs, err := util.ByteToBase10(params[2])
 	if err != nil {
 		return nil, util.NewFatalClientErr(err, "E_INVALID",
@@ -557,15 +666,15 @@ func (p *protocolV2) REQ(client *clientV2, params [][]byte) ([]byte, error) {
 	}
 	timeoutDuration := time.Duration(timeoutMs) * time.Millisecond
 
-	if timeoutDuration < 0 || timeoutDuration > maxTimeout {
+	if timeoutDuration < 0 || timeoutDuration > p.context.nsqd.options.MaxReqTimeout {
 		return nil, util.NewFatalClientErr(nil, "E_INVALID",
-			fmt.Sprintf("REQ timeout %d out of range 0-%d", timeoutDuration, maxTimeout))
+			fmt.Sprintf("REQ timeout %d out of range 0-%d", timeoutDuration, p.context.nsqd.options.MaxReqTimeout))
 	}
 
-	err = client.Channel.RequeueMessage(client.ID, id, timeoutDuration)
+	err = client.Channel.RequeueMessage(client.ID, *id, timeoutDuration)
 	if err != nil {
 		return nil, util.NewClientErr(err, "E_REQ_FAILED",
-			fmt.Sprintf("REQ %s failed %s", id, err.Error()))
+			fmt.Sprintf("REQ %s failed %s", *id, err.Error()))
 	}
 
 	client.RequeuedMessage()
@@ -574,7 +683,7 @@ func (p *protocolV2) REQ(client *clientV2, params [][]byte) ([]byte, error) {
 }
 
 func (p *protocolV2) CLS(client *clientV2, params [][]byte) ([]byte, error) {
-	if atomic.LoadInt32(&client.State) != nsq.StateSubscribed {
+	if atomic.LoadInt32(&client.State) != stateSubscribed {
 		return nil, util.NewFatalClientErr(nil, "E_INVALID", "cannot CLS in current state")
 	}
 
@@ -595,9 +704,9 @@ func (p *protocolV2) PUB(client *clientV2, params [][]byte) ([]byte, error) {
 	}
 
 	topicName := string(params[1])
-	if !nsq.IsValidTopicName(topicName) {
+	if !util.IsValidTopicName(topicName) {
 		return nil, util.NewFatalClientErr(nil, "E_BAD_TOPIC",
-			fmt.Sprintf("PUB topic name '%s' is not valid", topicName))
+			fmt.Sprintf("PUB topic name %q is not valid", topicName))
 	}
 
 	bodyLen, err := readLen(client.Reader, client.lenSlice)
@@ -621,8 +730,12 @@ func (p *protocolV2) PUB(client *clientV2, params [][]byte) ([]byte, error) {
 		return nil, util.NewFatalClientErr(err, "E_BAD_MESSAGE", "PUB failed to read message body")
 	}
 
+	if err := p.CheckAuth(client, "PUB", topicName, ""); err != nil {
+		return nil, err
+	}
+
 	topic := p.context.nsqd.GetTopic(topicName)
-	msg := nsq.NewMessage(<-p.context.nsqd.idChan, messageBody)
+	msg := NewMessage(<-p.context.nsqd.idChan, messageBody)
 	err = topic.PutMessage(msg)
 	if err != nil {
 		return nil, util.NewFatalClientErr(err, "E_PUB_FAILED", "PUB failed "+err.Error())
@@ -639,9 +752,9 @@ func (p *protocolV2) MPUB(client *clientV2, params [][]byte) ([]byte, error) {
 	}
 
 	topicName := string(params[1])
-	if !nsq.IsValidTopicName(topicName) {
+	if !util.IsValidTopicName(topicName) {
 		return nil, util.NewFatalClientErr(nil, "E_BAD_TOPIC",
-			fmt.Sprintf("E_BAD_TOPIC MPUB topic name '%s' is not valid", topicName))
+			fmt.Sprintf("E_BAD_TOPIC MPUB topic name %q is not valid", topicName))
 	}
 
 	bodyLen, err := readLen(client.Reader, client.lenSlice)
@@ -664,6 +777,11 @@ func (p *protocolV2) MPUB(client *clientV2, params [][]byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if err := p.CheckAuth(client, "MPUB", topicName, ""); err != nil {
+		return nil, err
+	}
+
 	topic := p.context.nsqd.GetTopic(topicName)
 
 	// if we've made it this far we've validated all the input,
@@ -679,7 +797,7 @@ func (p *protocolV2) MPUB(client *clientV2, params [][]byte) ([]byte, error) {
 
 func (p *protocolV2) TOUCH(client *clientV2, params [][]byte) ([]byte, error) {
 	state := atomic.LoadInt32(&client.State)
-	if state != nsq.StateSubscribed && state != nsq.StateClosing {
+	if state != stateSubscribed && state != stateClosing {
 		return nil, util.NewFatalClientErr(nil, "E_INVALID", "cannot TOUCH in current state")
 	}
 
@@ -687,17 +805,24 @@ func (p *protocolV2) TOUCH(client *clientV2, params [][]byte) ([]byte, error) {
 		return nil, util.NewFatalClientErr(nil, "E_INVALID", "TOUCH insufficient number of params")
 	}
 
-	id := *(*nsq.MessageID)(unsafe.Pointer(&params[1][0]))
-	err := client.Channel.TouchMessage(client.ID, id)
+	id, err := getMessageId(params[1])
+	if err != nil {
+		return nil, util.NewFatalClientErr(nil, "E_INVALID", err.Error())
+	}
+
+	client.RLock()
+	msgTimeout := client.MsgTimeout
+	client.RUnlock()
+	err = client.Channel.TouchMessage(client.ID, *id, msgTimeout)
 	if err != nil {
 		return nil, util.NewClientErr(err, "E_TOUCH_FAILED",
-			fmt.Sprintf("TOUCH %s failed %s", id, err.Error()))
+			fmt.Sprintf("TOUCH %s failed %s", *id, err.Error()))
 	}
 
 	return nil, nil
 }
 
-func readMPUB(r io.Reader, tmp []byte, idChan chan nsq.MessageID, maxMessageSize int64) ([]*nsq.Message, error) {
+func readMPUB(r io.Reader, tmp []byte, idChan chan MessageID, maxMessageSize int64) ([]*Message, error) {
 	numMessages, err := readLen(r, tmp)
 	if err != nil {
 		return nil, util.NewFatalClientErr(err, "E_BAD_BODY", "MPUB failed to read message count")
@@ -708,7 +833,7 @@ func readMPUB(r io.Reader, tmp []byte, idChan chan nsq.MessageID, maxMessageSize
 			fmt.Sprintf("MPUB invalid message count %d", numMessages))
 	}
 
-	messages := make([]*nsq.Message, 0, numMessages)
+	messages := make([]*Message, 0, numMessages)
 	for i := int32(0); i < numMessages; i++ {
 		messageSize, err := readLen(r, tmp)
 		if err != nil {
@@ -732,15 +857,22 @@ func readMPUB(r io.Reader, tmp []byte, idChan chan nsq.MessageID, maxMessageSize
 			return nil, util.NewFatalClientErr(err, "E_BAD_MESSAGE", "MPUB failed to read message body")
 		}
 
-		messages = append(messages, nsq.NewMessage(<-idChan, msgBody))
+		messages = append(messages, NewMessage(<-idChan, msgBody))
 	}
 
 	return messages, nil
 }
 
+// validate and cast the bytes on the wire to a message ID
+func getMessageId(p []byte) (*MessageID, error) {
+	if len(p) != MsgIDLength {
+		return nil, errors.New("Invalid Message ID")
+	}
+	return (*MessageID)(unsafe.Pointer(&p[0])), nil
+}
+
 func readLen(r io.Reader, tmp []byte) (int32, error) {
 	_, err := io.ReadFull(r, tmp)
-	//log.Printf("tmp: %v", tmp)
 	if err != nil {
 		return 0, err
 	}

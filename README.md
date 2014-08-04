@@ -1,7 +1,7 @@
 <p align="center"><img src="http://nsq.io/static/img/nsq.png"/></p>
 
- * **Source**: [https://github.com/deepglint/nsq][github]
- * **Issues**: [https://github.com/deepglint/nsq/issues][issues]
+* **Source**: [https://github.com/deepglint/nsq][github]
+* **Issues**: [https://github.com/deepglint/nsq/issues][issues]
  * **Mailing List**: [nsq-users@googlegroups.com](https://groups.google.com/d/forum/nsq-users)
  * **IRC**: #nsq on freenode
  * **Docs**: [http://nsq.io][docs]
@@ -21,7 +21,7 @@ Python libraries are available out of the box (as well as many other [client
 libraries][client_libraries]) and, if you're interested in building your own, there's a [protocol
 spec][protocol].
 
-The latest stable release is **[0.2.28][latest_tag]** ([ChangeLog][changelog]). We publish [binary
+The latest stable release is **[0.2.30][latest_tag]** ([ChangeLog][changelog]). We publish [binary
 releases][installing] for linux and darwin.
 
 NOTE: master is our *development* branch and may not be stable at all times.
@@ -46,7 +46,8 @@ NOTE: master is our *development* branch and may not be stable at all times.
 <a href="http://dramafever.com"><img src="http://nsq.io/static/img/dramafever.png" width="80"/></a>&nbsp;&nbsp;
 <a href="http://lytics.io"><img src="http://nsq.io/static/img/lytics.png" width="80"/></a>&nbsp;&nbsp;
 <a href="http://mediaforge.com"><img src="http://nsq.io/static/img/rakuten.png" width="80"/></a>&nbsp;&nbsp;
-<a href="http://hw-ops.com"><img src="http://nsq.io/static/img/heavy_water.png" width="40"/></a>
+<a href="http://hw-ops.com"><img src="http://nsq.io/static/img/heavy_water.png" width="40"/></a>&nbsp;&nbsp;
+<a href="http://socialradar.com"><img src="http://nsq.io/static/img/socialradar_logo.png" width="80"/></a>
 
 ## Documentation
 
@@ -76,7 +77,7 @@ NSQ was designed and developed by Matt Reiferson ([@imsnakes][snakes_twitter]) a
 [jehiah_twitter]: https://twitter.com/jehiah
 [bitly]: https://bitly.com
 [features_guarantees]: http://nsq.io/overview/features_and_guarantees.html
-[latest_tag]: https://github.com/deepglint/nsq/releases/tag/v0.2.28
+[latest_tag]: https://github.com/deepglint/nsq/releases/tag/v0.2.30
 [contributors]: https://github.com/deepglint/nsq/graphs/contributors
 [client_libraries]: http://nsq.io/clients/client_libraries.html
 [jekyll]: http://jekyllrb.com/

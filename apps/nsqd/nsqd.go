@@ -20,13 +20,15 @@ var (
 	flagSet = flag.NewFlagSet("nsqd", flag.ExitOnError)
 
 	// basic options
-	config           = flagSet.String("config", "", "path to config file")
-	showVersion      = flagSet.Bool("version", false, "print version string")
-	verbose          = flagSet.Bool("verbose", false, "enable verbose logging")
-	workerId         = flagSet.Int64("worker-id", 0, "unique identifier (int) for this worker (will default to a hash of hostname)")
-	httpsAddress     = flagSet.String("https-address", "", "<addr>:<port> to listen on for HTTPS clients")
-	httpAddress      = flagSet.String("http-address", "0.0.0.0:4151", "<addr>:<port> to listen on for HTTP clients")
-	tcpAddress       = flagSet.String("tcp-address", "0.0.0.0:4150", "<addr>:<port> to listen on for TCP clients")
+	config            = flagSet.String("config", "", "path to config file")
+	showVersion       = flagSet.Bool("version", false, "print version string")
+	verbose           = flagSet.Bool("verbose", false, "enable verbose logging")
+	workerId          = flagSet.Int64("worker-id", 0, "unique identifier (int) for this worker (will default to a hash of hostname)")
+	httpsAddress      = flagSet.String("https-address", "", "<addr>:<port> to listen on for HTTPS clients")
+	httpAddress       = flagSet.String("http-address", "0.0.0.0:4151", "<addr>:<port> to listen on for HTTP clients")
+	tcpAddress        = flagSet.String("tcp-address", "0.0.0.0:4150", "<addr>:<port> to listen on for TCP clients")
+	authHttpAddresses = util.StringArray{}
+
 	broadcastAddress = flagSet.String("broadcast-address", "", "address that will be registered with lookupd (defaults to the OS hostname)")
 	lookupdTCPAddrs  = util.StringArray{}
 
@@ -41,6 +43,7 @@ var (
 	msgTimeout    = flagSet.String("msg-timeout", "60s", "duration to wait before auto-requeing a message")
 	maxMsgTimeout = flagSet.Duration("max-msg-timeout", 15*time.Minute, "maximum duration before a message will timeout")
 	maxMsgSize    = flagSet.Int64("max-msg-size", 1024768, "maximum size of a single message in bytes")
+	maxReqTimeout = flagSet.Duration("max-req-timeout", 1*time.Hour, "maximum requeuing timeout for a message")
 	// remove, deprecated
 	maxMessageSize = flagSet.Int64("max-message-size", 1024768, "(deprecated use --max-msg-size) maximum size of a single message in bytes")
 	maxBodySize    = flagSet.Int64("max-body-size", 5*1024768, "maximum size of a single command body")
@@ -77,6 +80,7 @@ var (
 func init() {
 	flagSet.Var(&lookupdTCPAddrs, "lookupd-tcp-address", "lookupd TCP address (may be given multiple times)")
 	flagSet.Var(&e2eProcessingLatencyPercentiles, "e2e-processing-latency-percentile", "message processing time percentiles to keep track of (can be specified multiple times or comma separated, default none)")
+	flagSet.Var(&authHttpAddresses, "auth-http-address", "<addr>:<port> to query auth server (may be given multiple times)")
 }
 
 func main() {

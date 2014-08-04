@@ -10,9 +10,9 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
-	"github.com/deepglint/go-nsq"
 	"github.com/deepglint/nsq/util"
 )
 
@@ -102,11 +102,11 @@ func getTopicChan(command string, params []string) (string, string, error) {
 		channelName = params[1]
 	}
 
-	if !nsq.IsValidTopicName(topicName) {
+	if !util.IsValidTopicName(topicName) {
 		return "", "", util.NewFatalClientErr(nil, "E_BAD_TOPIC", fmt.Sprintf("%s topic name '%s' is not valid", command, topicName))
 	}
 
-	if channelName != "" && !nsq.IsValidChannelName(channelName) {
+	if channelName != "" && !util.IsValidChannelName(channelName) {
 		return "", "", util.NewFatalClientErr(nil, "E_BAD_CHANNEL", fmt.Sprintf("%s channel name '%s' is not valid", command, channelName))
 	}
 
@@ -216,7 +216,7 @@ func (p *LookupProtocolV1) IDENTIFY(client *ClientV1, reader *bufio.Reader, para
 		return nil, util.NewFatalClientErr(nil, "E_BAD_BODY", "IDENTIFY missing fields")
 	}
 
-	peerInfo.lastUpdate = time.Now()
+	atomic.StoreInt64(&peerInfo.lastUpdate, time.Now().UnixNano())
 
 	log.Printf("CLIENT(%s): IDENTIFY Address:%s TCP:%d HTTP:%d Version:%s",
 		client, peerInfo.BroadcastAddress, peerInfo.TcpPort, peerInfo.HttpPort, peerInfo.Version)
@@ -249,9 +249,11 @@ func (p *LookupProtocolV1) IDENTIFY(client *ClientV1, reader *bufio.Reader, para
 func (p *LookupProtocolV1) PING(client *ClientV1, params []string) ([]byte, error) {
 	if client.peerInfo != nil {
 		// we could get a PING before other commands on the same client connection
+		cur := time.Unix(0, atomic.LoadInt64(&client.peerInfo.lastUpdate))
 		now := time.Now()
-		log.Printf("CLIENT(%s): pinged (last ping %s)", client.peerInfo.id, now.Sub(client.peerInfo.lastUpdate))
-		client.peerInfo.lastUpdate = now
+		log.Printf("CLIENT(%s): pinged (last ping %s)", client.peerInfo.id,
+			now.Sub(cur))
+		atomic.StoreInt64(&client.peerInfo.lastUpdate, now.UnixNano())
 	}
 	return []byte("OK"), nil
 }

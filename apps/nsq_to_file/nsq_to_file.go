@@ -44,11 +44,10 @@ var (
 
 	// TODO: remove, deprecated
 	gzipCompression = flag.Int("gzip-compression", 3, "(deprecated) use --gzip-level, gzip compression level (1 = BestSpeed, 2 = BestCompression, 3 = DefaultCompression)")
-	verbose         = flag.Bool("verbose", false, "(deprecated) use --reader-opt=verbose")
 )
 
 func init() {
-	flag.Var(&readerOpts, "reader-opt", "option to passthrough to nsq.Reader (may be given multiple times)")
+	flag.Var(&readerOpts, "reader-opt", "option to passthrough to nsq.Consumer (may be given multiple times)")
 	flag.Var(&nsqdTCPAddrs, "nsqd-tcp-address", "nsqd TCP address (may be given multiple times)")
 	flag.Var(&lookupdHTTPAddrs, "lookupd-http-address", "lookupd HTTP address (may be given multiple times)")
 	flag.Var(&topics, "topic", "nsq topic (may be given multiple times)")
@@ -58,7 +57,7 @@ type FileLogger struct {
 	out              *os.File
 	gzipWriter       *gzip.Writer
 	lastFilename     string
-	logChan          chan *Message
+	logChan          chan *nsq.Message
 	compressionLevel int
 	gzipEnabled      bool
 	filenameFormat   string
@@ -68,19 +67,9 @@ type FileLogger struct {
 	hupChan  chan bool
 }
 
-type Message struct {
-	*nsq.Message
-	returnChannel chan *nsq.FinishedMessage
-}
-
-type SyncMsg struct {
-	m             *nsq.FinishedMessage
-	returnChannel chan *nsq.FinishedMessage
-}
-
 type ReaderFileLogger struct {
 	F *FileLogger
-	R *nsq.Reader
+	R *nsq.Consumer
 }
 
 type TopicDiscoverer struct {
@@ -98,13 +87,15 @@ func newTopicDiscoverer() *TopicDiscoverer {
 	}
 }
 
-func (l *FileLogger) HandleMessage(m *nsq.Message, responseChannel chan *nsq.FinishedMessage) {
-	l.logChan <- &Message{m, responseChannel}
+func (l *FileLogger) HandleMessage(m *nsq.Message) error {
+	m.DisableAutoResponse()
+	l.logChan <- m
+	return nil
 }
 
-func (f *FileLogger) router(r *nsq.Reader) {
+func (f *FileLogger) router(r *nsq.Consumer) {
 	pos := 0
-	output := make([]*Message, r.MaxInFlight())
+	output := make([]*nsq.Message, *maxInFlight)
 	sync := false
 	ticker := time.NewTicker(time.Duration(30) * time.Second)
 	closing := false
@@ -113,7 +104,7 @@ func (f *FileLogger) router(r *nsq.Reader) {
 
 	for {
 		select {
-		case <-r.ExitChan:
+		case <-r.StopChan:
 			sync = true
 			closeFile = true
 			exit = true
@@ -148,7 +139,7 @@ func (f *FileLogger) router(r *nsq.Reader) {
 			}
 			output[pos] = m
 			pos++
-			if pos == r.MaxInFlight() {
+			if pos == cap(output) {
 				sync = true
 			}
 		}
@@ -163,7 +154,7 @@ func (f *FileLogger) router(r *nsq.Reader) {
 				for pos > 0 {
 					pos--
 					m := output[pos]
-					m.returnChannel <- &nsq.FinishedMessage{m.Id, 0, true}
+					m.Finish()
 					output[pos] = nil
 				}
 			}
@@ -315,7 +306,7 @@ func NewFileLogger(gzipEnabled bool, compressionLevel int, filenameFormat, topic
 	}
 
 	f := &FileLogger{
-		logChan:          make(chan *Message, 1),
+		logChan:          make(chan *nsq.Message, 1),
 		compressionLevel: compressionLevel,
 		filenameFormat:   filenameFormat,
 		gzipEnabled:      gzipEnabled,
@@ -341,25 +332,24 @@ func newReaderFileLogger(topic string) (*ReaderFileLogger, error) {
 		return nil, err
 	}
 
-	r, err := nsq.NewReader(topic, *channel)
+	cfg := nsq.NewConfig()
+	cfg.UserAgent = fmt.Sprintf("nsq_to_file/%s go-nsq/%s", util.BINARY_VERSION, nsq.VERSION)
+	err = util.ParseReaderOpts(cfg, readerOpts)
 	if err != nil {
 		return nil, err
 	}
-	err = util.ParseReaderOpts(r, readerOpts)
-	if err != nil {
-		return nil, err
-	}
-	r.SetMaxInFlight(*maxInFlight)
-	r.AddAsyncHandler(f)
+	cfg.MaxInFlight = *maxInFlight
 
-	// TODO: remove, deprecated
-	if hasArg("verbose") {
-		log.Printf("WARNING: --verbose is deprecated in favor of --reader-opt=verbose")
-		r.Configure("verbose", true)
+	r, err := nsq.NewConsumer(topic, *channel, cfg)
+	if err != nil {
+		return nil, err
 	}
+	r.SetLogger(log.New(os.Stderr, "", log.LstdFlags), nsq.LogLevelInfo)
+
+	r.AddHandler(f)
 
 	for _, addrString := range nsqdTCPAddrs {
-		err := r.ConnectToNSQ(addrString)
+		err := r.ConnectToNSQD(addrString)
 		if err != nil {
 			log.Fatalf(err.Error())
 		}
@@ -367,7 +357,7 @@ func newReaderFileLogger(topic string) (*ReaderFileLogger, error) {
 
 	for _, addrString := range lookupdHTTPAddrs {
 		log.Printf("lookupd addr %s", addrString)
-		err := r.ConnectToLookupd(addrString)
+		err := r.ConnectToNSQLookupd(addrString)
 		if err != nil {
 			log.Fatalf(err.Error())
 		}

@@ -7,7 +7,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/deepglint/go-nsq"
 	"github.com/deepglint/nsq/util"
 )
 
@@ -20,8 +19,8 @@ type Topic struct {
 	name              string
 	channelMap        map[string]*Channel
 	backend           BackendQueue
-	incomingMsgChan   chan *nsq.Message
-	memoryMsgChan     chan *nsq.Message
+	incomingMsgChan   chan *Message
+	memoryMsgChan     chan *Message
 	exitChan          chan int
 	channelUpdateChan chan int
 	waitGroup         util.WaitGroupWrapper
@@ -30,7 +29,6 @@ type Topic struct {
 	paused    int32
 	pauseChan chan bool
 
-	options *nsqdOptions
 	context *context
 }
 
@@ -46,8 +44,8 @@ func NewTopic(topicName string, context *context) *Topic {
 		name:              topicName,
 		channelMap:        make(map[string]*Channel),
 		backend:           diskQueue,
-		incomingMsgChan:   make(chan *nsq.Message, 1),
-		memoryMsgChan:     make(chan *nsq.Message, context.nsqd.options.MemQueueSize),
+		incomingMsgChan:   make(chan *Message, 1),
+		memoryMsgChan:     make(chan *Message, context.nsqd.options.MemQueueSize),
 		exitChan:          make(chan int),
 		channelUpdateChan: make(chan int),
 		context:           context,
@@ -139,22 +137,28 @@ func (t *Topic) DeleteExistingChannel(channelName string) error {
 }
 
 // PutMessage writes to the appropriate incoming message channel
-func (t *Topic) PutMessage(msg *nsq.Message) error {
+func (t *Topic) PutMessage(msg *Message) error {
 	t.RLock()
 	defer t.RUnlock()
 	if atomic.LoadInt32(&t.exitFlag) == 1 {
 		return errors.New("exiting")
+	}
+	if !t.context.nsqd.IsHealthy() {
+		return errors.New("unhealthy")
 	}
 	t.incomingMsgChan <- msg
 	atomic.AddUint64(&t.messageCount, 1)
 	return nil
 }
 
-func (t *Topic) PutMessages(messages []*nsq.Message) error {
+func (t *Topic) PutMessages(messages []*Message) error {
 	t.RLock()
 	defer t.RUnlock()
 	if atomic.LoadInt32(&t.exitFlag) == 1 {
 		return errors.New("exiting")
+	}
+	if !t.context.nsqd.IsHealthy() {
+		return errors.New("unhealthy")
 	}
 	for _, m := range messages {
 		t.incomingMsgChan <- m
@@ -170,11 +174,11 @@ func (t *Topic) Depth() int64 {
 // messagePump selects over the in-memory and backend queue and
 // writes messages to every channel for this topic
 func (t *Topic) messagePump() {
-	var msg *nsq.Message
+	var msg *Message
 	var buf []byte
 	var err error
 	var chans []*Channel
-	var memoryMsgChan chan *nsq.Message
+	var memoryMsgChan chan *Message
 	var backendChan chan []byte
 
 	t.RLock()
@@ -192,7 +196,7 @@ func (t *Topic) messagePump() {
 		select {
 		case msg = <-memoryMsgChan:
 		case buf = <-backendChan:
-			msg, err = nsq.DecodeMessage(buf)
+			msg, err = decodeMessage(buf)
 			if err != nil {
 				log.Printf("ERROR: failed to decode message - %s", err.Error())
 				continue
@@ -232,12 +236,13 @@ func (t *Topic) messagePump() {
 			// fastpath to avoid copy if its the first channel
 			// (the topic already created the first copy)
 			if i > 0 {
-				chanMsg = nsq.NewMessage(msg.Id, msg.Body)
+				chanMsg = NewMessage(msg.ID, msg.Body)
 				chanMsg.Timestamp = msg.Timestamp
 			}
 			err := channel.PutMessage(chanMsg)
 			if err != nil {
-				log.Printf("TOPIC(%s) ERROR: failed to put msg(%s) to channel(%s) - %s", t.name, msg.Id, channel.name, err.Error())
+				log.Printf("TOPIC(%s) ERROR: failed to put msg(%s) to channel(%s) - %s",
+					t.name, msg.ID, channel.name, err)
 			}
 		}
 	}
@@ -256,9 +261,9 @@ func (t *Topic) router() {
 		default:
 			err := writeMessageToBackend(&msgBuf, msg, t.backend)
 			if err != nil {
-				log.Printf("ERROR: failed to write message to backend - %s", err.Error())
-				// theres not really much we can do at this point, you're certainly
-				// going to lose messages...
+				log.Printf("TOPIC(%s) ERROR: failed to write message to backend - %s",
+					t.name, err)
+				t.context.nsqd.SetHealth(err)
 			}
 		}
 	}
