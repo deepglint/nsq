@@ -17,9 +17,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/deepglint/go-nsq"
-	"github.com/deepglint/nsq/util"
-	"github.com/deepglint/nsq/util/lookupd"
+	"github.com/bitly/go-nsq"
+	"github.com/bitly/nsq/util"
+	"github.com/bitly/nsq/util/lookupd"
 )
 
 var (

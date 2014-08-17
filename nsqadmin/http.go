@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/deepglint/nsq/nsqadmin/templates"
-	"github.com/deepglint/nsq/util"
-	"github.com/deepglint/nsq/util/lookupd"
+	"github.com/bitly/nsq/nsqadmin/templates"
+	"github.com/bitly/nsq/util"
+	"github.com/bitly/nsq/util/lookupd"
 	"github.com/bitly/nsq/util/semver"
 )
 

@@ -3,9 +3,9 @@ package nsqlookupd
 import (
 	"fmt"
 
-	"github.com/deepglint/go-nsq"
-	"github.com/deepglint/nsq/util"
-	lookuputil "github.com/deepglint/nsq/util/lookupd"
+	"github.com/bitly/go-nsq"
+	"github.com/bitly/nsq/util"
+	lookuputil "github.com/bitly/nsq/util/lookupd"
 	"github.com/bmizerany/assert"
 
 	"io/ioutil"

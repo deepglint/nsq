@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/deepglint/nsq/util"
+	"github.com/bitly/nsq/util"
 )
 
 type LookupProtocolV1 struct {

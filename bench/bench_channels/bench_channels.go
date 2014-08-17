@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/deepglint/go-nsq"
+	"github.com/bitly/go-nsq"
 )
 
 var (

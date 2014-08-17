@@ -5,7 +5,7 @@ import (
 	"log"
 	"net"
 
-	"github.com/deepglint/nsq/util"
+	"github.com/bitly/nsq/util"
 )
 
 type tcpServer struct {

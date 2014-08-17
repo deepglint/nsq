@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/deepglint/nsq/util"
+	"github.com/bitly/nsq/util"
 )
 
 type NSQAdmin struct {

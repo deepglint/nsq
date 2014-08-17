@@ -7,7 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/deepglint/nsq/util"
+	"github.com/bitly/nsq/util"
 )
 
 type Topic struct {

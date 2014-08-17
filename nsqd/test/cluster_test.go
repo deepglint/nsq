@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/deepglint/nsq/util"
+	"github.com/bitly/nsq/util"
 	"github.com/bmizerany/assert"
 )
 

@@ -8,7 +8,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/deepglint/nsq/util"
+	"github.com/bitly/nsq/util"
 )
 
 type Uint64Slice []uint64

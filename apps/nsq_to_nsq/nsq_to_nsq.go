@@ -18,9 +18,9 @@ import (
 	"time"
 
 	"github.com/bitly/go-hostpool"
-	"github.com/deepglint/go-nsq"
+	"github.com/bitly/go-nsq"
 	"github.com/bitly/go-simplejson"
-	"github.com/deepglint/nsq/util"
+	"github.com/bitly/nsq/util"
 	"github.com/bitly/nsq/util/timermetrics"
 )
 
@@ -79,7 +79,7 @@ type PublishHandler struct {
 }
 
 func (ph *PublishHandler) responder() {
-	var msg *nsq.Message
+	var msg *nsq.Message 
 	var startTime time.Time
 	var address string
 	var hostPoolResponse hostpool.HostPoolResponse

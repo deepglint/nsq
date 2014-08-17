@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/deepglint/go-nsq"
+	"github.com/bitly/go-nsq"
 	"github.com/bmizerany/assert"
 )
 

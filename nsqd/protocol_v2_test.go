@@ -23,8 +23,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/deepglint/go-nsq"
-	"github.com/deepglint/nsq/util"
+	"github.com/bitly/go-nsq"
+	"github.com/bitly/nsq/util"
 	"github.com/bmizerany/assert"
 	"github.com/mreiferson/go-snappystream"
 )

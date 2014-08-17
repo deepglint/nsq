@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/deepglint/go-nsq"
+	"github.com/bitly/go-nsq"
 )
 
 func ParseReaderOpts(cfg *nsq.Config, opts StringArray) error {

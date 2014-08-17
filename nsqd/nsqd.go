@@ -19,8 +19,8 @@ import (
 	"time"
 
 	"github.com/bitly/go-simplejson"
-	"github.com/deepglint/nsq/util"
-	"github.com/deepglint/nsq/util/lookupd"
+	"github.com/bitly/nsq/util"
+	"github.com/bitly/nsq/util/lookupd"
 )
 
 type NSQD struct {

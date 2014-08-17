@@ -22,7 +22,7 @@ Bugs:
 
 **Upgrading from 0.2.28**: No backwards incompatible changes.
 
-This release includes Fa slew of new features and bug fixes, with contributions from 8
+This release includes a slew of new features and bug fixes, with contributions from 8
 members of the community, thanks!
 
 The most important new feature is authentication (the `AUTH` command for `nsqd`), added in #356.
@@ -97,7 +97,7 @@ client certificate policy via `--tls-client-auth-policy` (`require` or `require-
 This can be used as a form of client authentication.
 
 Additionally, `nsqd` is now structured such that it is importable in other Go applications
-via `github.com/deepglint/nsq/nsqd`, thanks to @kzvezdarov.
+via `github.com/bitly/nsq/nsqd`, thanks to @kzvezdarov.
 
 Finally, thanks to @paddyforan, `nsq_to_file` can now archive *multiple* topics or 
 optionally archive *all* discovered topics (by specifying no `--topic` params
@@ -108,7 +108,7 @@ New Features / Enhancements:
  * #334 - `nsq_to_file` can archive many topics (thanks @paddyforan)
  * #327 - add `nsqd` TLS client certificate verification policy, ability
           to require TLS, and HTTPS support (thanks @chrisroberts)
- * #325 - make `nsqd` importable (`github.com/deepglint/nsq/nsqd`) (thanks @kzvezdarov)
+ * #325 - make `nsqd` importable (`github.com/bitly/nsq/nsqd`) (thanks @kzvezdarov)
  * #321 - improve `IDENTIFY` options (replace `short_id` and `long_id` with
           `client_id` and `hostname`)
  * #319 - allow path separator in `nsq_to_file` filenames (thanks @jsocol)
@@ -116,7 +116,7 @@ New Features / Enhancements:
 
 Bug Fixes:
 
- * deepglint/go-nsq#19 and deepglint/go-nsq#29 - fix deadlocks on `nsq.Reader` connection close/exit, this
+ * bitly/go-nsq#19 and bitly/go-nsq#29 - fix deadlocks on `nsq.Reader` connection close/exit, this
                                          impacts the utilities packaged with the NSQ binary
                                          distribution such as `nsq_to_file`, `nsq_to_http`,
                                          `nsq_to_nsq` and `nsq_tail`.
@@ -540,7 +540,7 @@ removed in a future release.
 
 ## go-nsq Client Library
 
- * #264 moved **go-nsq** to its own [repository](https://github.com/deepglint/go-nsq)
+ * #264 moved **go-nsq** to its own [repository](https://github.com/bitly/go-nsq)
 
 ## pynsq Python Client Library
 

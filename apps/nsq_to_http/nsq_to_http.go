@@ -19,8 +19,8 @@ import (
 	"time"
 
 	"github.com/bitly/go-hostpool"
-	"github.com/deepglint/go-nsq"
-	"github.com/deepglint/nsq/util"
+	"github.com/bitly/go-nsq"
+	"github.com/bitly/nsq/util"
 	"github.com/bitly/nsq/util/timermetrics"
 )
 
