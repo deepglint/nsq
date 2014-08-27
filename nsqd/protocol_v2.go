@@ -326,7 +326,7 @@ func (p *protocolV2) IDENTIFY(client *clientV2, params [][]byte) ([]byte, error)
 	if atomic.LoadInt32(&client.State) != stateInit {
 		return nil, util.NewFatalClientErr(nil, "E_INVALID", "cannot IDENTIFY in current state")
 	}
-
+ 	
 	bodyLen, err := readLen(client.Reader, client.lenSlice)
 	if err != nil {
 		return nil, util.NewFatalClientErr(err, "E_BAD_BODY", "IDENTIFY failed to read body size")

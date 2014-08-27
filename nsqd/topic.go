@@ -229,7 +229,10 @@ func (t *Topic) messagePump() {
 			goto exit
 		}
 
+		log.Printf("comes the message !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!:)%s",string(msg.Body))
+
 		for i, channel := range chans {
+			log.Printf("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@!!!@@@@@@@@@@@@@!!!")
 			chanMsg := msg
 			// copy the message because each channel
 			// needs a unique instance but...
