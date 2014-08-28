@@ -6,8 +6,11 @@ import (
 	"log"
 	"sync"
 	"sync/atomic"
-
+	
+	"strings"
 	"github.com/bitly/nsq/util"
+	"time"
+	//"github.com/bitly/go-simplejson"
 )
 
 type Topic struct {
@@ -229,8 +232,20 @@ func (t *Topic) messagePump() {
 			goto exit
 		}
 
-		log.Printf("comes the message !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!:)%s",string(msg.Body))
-
+		if(t.name=="Normal"){
+			log.Printf("comes the message !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!:)%s,%s",string(msg.Body),t.name)
+			var textMsg=string(msg.Body)
+			start:=strings.Index(textMsg,"StartTime")
+			datestr:=textMsg[start+10:start+37]
+			log.Printf("The Date is: %s",datestr)
+			const shortForm = "2006-01-02T15:04:05.999ZMST"
+			date,_:=time.Parse(shortForm,datestr)
+			log.Printf("********************%d",(time.Now().Unix()-date.Unix()))
+			if((time.Now().Unix()-date.Unix())>600){
+				log.Printf("Throw!!!")
+				continue
+			}
+		}
 		for i, channel := range chans {
 			log.Printf("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@!!!@@@@@@@@@@@@@!!!")
 			chanMsg := msg

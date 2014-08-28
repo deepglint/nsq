@@ -117,7 +117,7 @@ func NewChannel(topicName string, channelName string, context *context,
 
 	go c.messagePump()
 
-	c.waitGroup.Wrap(func() { c.router2() })
+	c.waitGroup.Wrap(func() { c.router() })
 	c.waitGroup.Wrap(func() { c.deferredWorker() })
 	c.waitGroup.Wrap(func() { c.inFlightWorker() })
 
