@@ -7,10 +7,12 @@ import (
 	"sync"
 	"sync/atomic"
 	
-	"strings"
+	//"strings"
 	"github.com/bitly/nsq/util"
 	"time"
 	//"github.com/bitly/go-simplejson"
+	"encoding/json"
+	"strings"
 )
 
 type Topic struct {
@@ -233,15 +235,52 @@ func (t *Topic) messagePump() {
 		}
 
 		if(t.name=="Normal"){
-			log.Printf("comes the message !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!:)%s,%s",string(msg.Body),t.name)
-			var textMsg=string(msg.Body)
-			start:=strings.Index(textMsg,"StartTime")
-			datestr:=textMsg[start+10:start+37]
-			log.Printf("The Date is: %s",datestr)
-			const shortForm = "2006-01-02T15:04:05.999ZMST"
-			date,_:=time.Parse(shortForm,datestr)
-			log.Printf("********************%d",(time.Now().Unix()-date.Unix()))
+			// log.Printf("comes the message !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!:)%s,%s",string(msg.Body),t.name)
+			// var textMsg=string(msg.Body)
+			// start:=strings.Index(textMsg,"StartTime")
+			// datestr:=textMsg[start+12:start+41]
+			// log.Printf("The Date is: %s",datestr)
+			// const shortForm = "2006-08-28T18:15:57.336+08:00"
+			// date,_:=time.Parse(shortForm,datestr)
+			// log.Printf("********************%d",(time.Now().Unix()-date.Unix()))
+			// if((time.Now().Unix()-date.Unix())>600){
+			// 	log.Printf("Throw!!!")
+			// 	continue
+			// }
+			var eventobj map[string] interface{}
+			json.Unmarshal(msg.Body,&eventobj)
+			log.Printf("comes---%v",eventobj)
+			//log.Printf("%s",eventobj["StartTime"])
+			const shortForm1 = "2006-01-02T15:04:05.999ZMST"
+			const shortForm2="2006-01-02T15:04:05.999+08:00"
+			timestr:=eventobj["StartTime"].(string)
+			timestr=strings.Trim(timestr," ")
+			log.Printf("--@@--%s",timestr)
+			date,err:=time.Parse(shortForm1,timestr)
+			if err!=nil{
+				date,_=time.Parse(shortForm2,timestr)
+			}
+			log.Printf("********************%d,%d",time.Now().Unix(),date.Unix())
 			if((time.Now().Unix()-date.Unix())>600){
+				log.Printf("Throw!!!")
+				continue
+			}
+		}else{
+			var eventobj map[string] interface{}
+			json.Unmarshal(msg.Body,&eventobj)
+			log.Printf("comes---%v",eventobj)
+			//log.Printf("%s",eventobj["StartTime"])
+			const shortForm1 = "2006-01-02T15:04:05.999ZMST"
+			const shortForm2="2006-01-02T15:04:05.999+08:00"
+			timestr:=eventobj["StartTime"].(string)
+			timestr=strings.Trim(timestr," ")
+			log.Printf("--@@--%s",timestr)
+			date,err:=time.Parse(shortForm1,timestr)
+			if err!=nil{
+				date,_=time.Parse(shortForm2,timestr)
+			}
+			log.Printf("********************%d,%d",time.Now().Unix(),date.Unix())
+			if((time.Now().Unix()-date.Unix())>6000){
 				log.Printf("Throw!!!")
 				continue
 			}
