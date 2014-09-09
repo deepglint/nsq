@@ -252,7 +252,7 @@ func (t *Topic) messagePump() {
 			log.Printf("comes---%v",eventobj)
 			//log.Printf("%s",eventobj["StartTime"])
 			const shortForm1 = "2006-01-02T15:04:05.999ZMST"
-			const shortForm2="2006-01-02T15:04:05.999+08:00"
+			const shortForm2="2006-01-02T15:04:05.999-07:00"
 			timestr:=eventobj["StartTime"].(string)
 			timestr=strings.Trim(timestr," ")
 			log.Printf("--@@--%s",timestr)
@@ -260,8 +260,8 @@ func (t *Topic) messagePump() {
 			if err!=nil{
 				date,_=time.Parse(shortForm2,timestr)
 			}
-			log.Printf("********************%d,%d",time.Now().Unix(),date.Unix())
-			if((time.Now().Unix()-date.Unix())>600){
+			log.Printf("********************%d,%d,%d",time.Now().Unix(),date.Unix(),(time.Now().Unix()-date.Unix()))
+			if((time.Now().Unix()-date.Unix())>60){
 				log.Printf("Throw!!!")
 				continue
 			}
@@ -271,7 +271,7 @@ func (t *Topic) messagePump() {
 			log.Printf("comes---%v",eventobj)
 			//log.Printf("%s",eventobj["StartTime"])
 			const shortForm1 = "2006-01-02T15:04:05.999ZMST"
-			const shortForm2="2006-01-02T15:04:05.999+08:00"
+			const shortForm2="2006-01-02T15:04:05.999-07:00"
 			timestr:=eventobj["StartTime"].(string)
 			timestr=strings.Trim(timestr," ")
 			log.Printf("--@@--%s",timestr)
@@ -279,8 +279,8 @@ func (t *Topic) messagePump() {
 			if err!=nil{
 				date,_=time.Parse(shortForm2,timestr)
 			}
-			log.Printf("********************%d,%d",time.Now().Unix(),date.Unix())
-			if((time.Now().Unix()-date.Unix())>6000){
+			log.Printf("********************%d,%d,%d",time.Now().Unix(),date.Unix(),(time.Now().Unix()-date.Unix()))
+			if((time.Now().Unix()-date.Unix())>180){
 				log.Printf("Throw!!!")
 				continue
 			}
