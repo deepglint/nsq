@@ -248,7 +248,11 @@ func (t *Topic) messagePump() {
 			// 	continue
 			// }
 			var eventobj map[string] interface{}
-			json.Unmarshal(msg.Body,&eventobj)
+			err:=json.Unmarshal(msg.Body,&eventobj)
+			if err!=nil{
+				log.Printf("the data is bed !")
+				continue;
+			}
 			log.Printf("comes---%v",eventobj)
 			//log.Printf("%s",eventobj["StartTime"])
 			const shortForm1 = "2006-01-02T15:04:05.999ZMST"
@@ -267,7 +271,11 @@ func (t *Topic) messagePump() {
 			}
 		}else{
 			var eventobj map[string] interface{}
-			json.Unmarshal(msg.Body,&eventobj)
+			err:=json.Unmarshal(msg.Body,&eventobj)
+			if err!=nil{
+				log.Printf("the data is bed !")
+				continue;
+			}
 			log.Printf("comes---%v",eventobj)
 			//log.Printf("%s",eventobj["StartTime"])
 			const shortForm1 = "2006-01-02T15:04:05.999ZMST"
