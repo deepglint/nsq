@@ -1,0 +1,284 @@
+{
+	"auto_complete":
+	{
+		"selected_items":
+		[
+			[
+				"fil",
+				"file"
+			],
+			[
+				"print",
+				"Println"
+			],
+			[
+				"Lo",
+				"LoadConfig"
+			],
+			[
+				"back",
+				"background-color"
+			]
+		]
+	},
+	"buffers":
+	[
+		{
+			"file": "/Users/deepglint/Desktop/workspace/cubeslamorigin/origin2.html",
+			"settings":
+			{
+				"buffer_size": 43568,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "/Users/deepglint/Desktop/workspace/cubeslamorigin/javascript/slam.min.js",
+			"settings":
+			{
+				"buffer_size": 1013823,
+				"line_ending": "Unix"
+			}
+		}
+	],
+	"build_system": "",
+	"command_palette":
+	{
+		"height": 0.0,
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"console":
+	{
+		"height": 0.0
+	},
+	"distraction_free":
+	{
+		"menu_visible": true,
+		"show_minimap": false,
+		"show_open_files": false,
+		"show_tabs": false,
+		"side_bar_visible": false,
+		"status_bar_visible": false
+	},
+	"file_history":
+	[
+		"/Users/deepglint/Desktop/workspace/cube slam/origin2.html",
+		"/Users/deepglint/gocode/src/github.com/deepglint/nsq/apps/nsqd/pollmaster",
+		"/Users/deepglint/Downloads/loveuv_2.37.crx",
+		"/Users/deepglint/Desktop/workspace/dachuang/gamyesweb/web/src/main/webapp/public/stylesheets/custom.css",
+		"/Users/deepglint/Desktop/workspace/dachuang/gamyesweb/web/src/main/webapp/WEB-INF/views/index.ftl",
+		"/Users/deepglint/Desktop/workspace/dachuang/gamyesweb/web/src/main/webapp/WEB-INF/views/home/navtab-category.ftl",
+		"/Users/deepglint/Downloads/Applications/RedAlert3.app/Contents/Resources/English.lproj/Localizable.strings",
+		"/Users/deepglint/Downloads/Applications/RedAlert3.app/Contents/PkgInfo",
+		"/Users/deepglint/Downloads/Applications/RedAlert3.app/Contents/Frameworks/version.txt",
+		"/Users/deepglint/gocode/src/github.com/deepglint/muses/serviceRouter/routeConfig.json",
+		"/Users/deepglint/Downloads/程序/Views/Views/Home/Index.aspx",
+		"/Users/deepglint/gocode/src/github.com/deepglint/glog/glog.go",
+		"/Users/deepglint/gocode/src/github.com/deepglint/muses/nsqclassifier/config.json",
+		"/Users/deepglint/gocode/src/github.com/deepglint/muses/nsqclassifier/nsqclassifier.go",
+		"/Users/deepglint/gocode/src/github.com/deepglint/muses/nsqclassifier/README.md",
+		"/Users/deepglint/gocode/src/github.com/deepglint/muses/rcollector/controllers/testcontroller.go",
+		"/Users/deepglint/gocode/src/github.com/deepglint/muses/rcollector/controllers/config.json",
+		"/Users/deepglint/gocode/src/github.com/deepglint/muses/rcollector/config.json",
+		"/Users/deepglint/Desktop/workspace/dachuang/gamyesweb/web/src/main/webapp/public/javascripts/page/home.js",
+		"/Users/deepglint/Desktop/workspace/dachuang/gamyesweb/web/src/main/webapp/order.html",
+		"/Users/deepglint/Desktop/workspace/dachuang/gamyesweb/game-machine/src/main/java/com/gamyes/web/machine/IndexForm.java",
+		"/Users/deepglint/Desktop/workspace/deepglint-Website/deepglint-Website/fullpage/assets/vision.html",
+		"/Users/deepglint/Desktop/workspace/deepglint-Website/deepglint-Website/demosite/js/main.min.js",
+		"/Users/deepglint/Desktop/workspace/deepglint-Website/deepglint-Website/fullpage/assets/hardware.html"
+	],
+	"find":
+	{
+		"height": 35.0
+	},
+	"find_in_files":
+	{
+		"height": 0.0,
+		"where_history":
+		[
+		]
+	},
+	"find_state":
+	{
+		"case_sensitive": false,
+		"find_history":
+		[
+			"ws://",
+			"comes",
+			"\"\n",
+			"routemap",
+			"choose",
+			"FMT",
+			"menu",
+			"me nu",
+			"ba r",
+			"基于SDK，开发Windows平台的客户端及移动应用",
+			"北京格灵深瞳信息技术有限公司",
+			"details",
+			"myfir",
+			"sensor3",
+			"color:black",
+			"商务开发",
+			"NAVIgation",
+			";\n",
+			"微软雅黑",
+			"font",
+			"我们",
+			"2_bg1",
+			"img/",
+			"i m g",
+			"></",
+			"product",
+			"6年以上软件开发经验",
+			"40px",
+			"负责公司产品相关结构设计，完成符合功能和性能要求的逻辑设计",
+			">\n",
+			"431",
+			"11",
+			"CLASS=\"RE",
+			"=\"\"></",
+			"transitionEnd",
+			"jquery.min.js",
+			"return",
+			"work-det",
+			"work"
+		],
+		"highlight": true,
+		"in_selection": false,
+		"preserve_case": false,
+		"regex": false,
+		"replace_history":
+		[
+		],
+		"reverse": false,
+		"show_context": true,
+		"use_buffer2": true,
+		"whole_word": false,
+		"wrap": true
+	},
+	"groups":
+	[
+		{
+			"selected": 1,
+			"sheets":
+			[
+				{
+					"buffer": 0,
+					"file": "/Users/deepglint/Desktop/workspace/cubeslamorigin/origin2.html",
+					"settings":
+					{
+						"buffer_size": 43568,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								41506,
+								41506
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/HTML/HTML.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "/Users/deepglint/Desktop/workspace/cubeslamorigin/javascript/slam.min.js",
+					"settings":
+					{
+						"buffer_size": 1013823,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								213754,
+								213754
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/JavaScript/JavaScript.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 63246.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				}
+			]
+		}
+	],
+	"incremental_find":
+	{
+		"height": 0.0
+	},
+	"input":
+	{
+		"height": 31.0
+	},
+	"layout":
+	{
+		"cells":
+		[
+			[
+				0,
+				0,
+				1,
+				1
+			]
+		],
+		"cols":
+		[
+			0.0,
+			1.0
+		],
+		"rows":
+		[
+			0.0,
+			1.0
+		]
+	},
+	"menu_visible": true,
+	"replace":
+	{
+		"height": 0.0
+	},
+	"save_all_on_build": true,
+	"select_file":
+	{
+		"height": 0.0,
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"select_project":
+	{
+		"height": 0.0,
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"show_minimap": true,
+	"show_open_files": false,
+	"show_tabs": true,
+	"side_bar_visible": true,
+	"side_bar_width": 267.0,
+	"status_bar_visible": true
+}
