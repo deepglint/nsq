@@ -265,6 +265,7 @@ func (t *Topic) messagePump() {
 				date,_=time.Parse(shortForm2,timestr)
 			}
 			log.Printf("********************%d,%d,%d",time.Now().Unix(),date.Unix(),(time.Now().Unix()-date.Unix()))
+			//if((time.Now()-msg.Timestamp)>60???)
 			if((time.Now().Unix()-date.Unix())>60){
 				log.Printf("Throw!!!")
 				continue
