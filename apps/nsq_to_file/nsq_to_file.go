@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"syscall"
@@ -36,8 +37,9 @@ var (
 	gzipEnabled    = flag.Bool("gzip", false, "gzip output files.")
 	skipEmptyFiles = flag.Bool("skip-empty-files", false, "Skip writting empty files")
 	topicPollRate  = flag.Duration("topic-refresh", time.Minute, "how frequently the topic list should be refreshed")
+	topicPattern   = flag.String("topic-pattern", ".*", "Only log topics matching the following pattern")
 
-	readerOpts       = util.StringArray{}
+	consumerOpts     = util.StringArray{}
 	nsqdTCPAddrs     = util.StringArray{}
 	lookupdHTTPAddrs = util.StringArray{}
 	topics           = util.StringArray{}
@@ -47,7 +49,10 @@ var (
 )
 
 func init() {
-	flag.Var(&readerOpts, "reader-opt", "option to passthrough to nsq.Consumer (may be given multiple times)")
+	// TODO: remove, deprecated
+	flag.Var(&consumerOpts, "reader-opt", "(deprecated) use --consumer-opt")
+	flag.Var(&consumerOpts, "consumer-opt", "option to passthrough to nsq.Consumer (may be given multiple times, http://godoc.org/github.com/bitly/go-nsq#Config)")
+
 	flag.Var(&nsqdTCPAddrs, "nsqd-tcp-address", "nsqd TCP address (may be given multiple times)")
 	flag.Var(&lookupdHTTPAddrs, "lookupd-http-address", "lookupd HTTP address (may be given multiple times)")
 	flag.Var(&topics, "topic", "nsq topic (may be given multiple times)")
@@ -67,13 +72,13 @@ type FileLogger struct {
 	hupChan  chan bool
 }
 
-type ReaderFileLogger struct {
+type ConsumerFileLogger struct {
 	F *FileLogger
-	R *nsq.Consumer
+	C *nsq.Consumer
 }
 
 type TopicDiscoverer struct {
-	topics   map[string]*ReaderFileLogger
+	topics   map[string]*ConsumerFileLogger
 	termChan chan os.Signal
 	hupChan  chan os.Signal
 	wg       sync.WaitGroup
@@ -81,7 +86,7 @@ type TopicDiscoverer struct {
 
 func newTopicDiscoverer() *TopicDiscoverer {
 	return &TopicDiscoverer{
-		topics:   make(map[string]*ReaderFileLogger),
+		topics:   make(map[string]*ConsumerFileLogger),
 		termChan: make(chan os.Signal),
 		hupChan:  make(chan os.Signal),
 	}
@@ -131,11 +136,11 @@ func (f *FileLogger) router(r *nsq.Consumer) {
 			}
 			_, err := f.Write(m.Body)
 			if err != nil {
-				log.Fatalf("ERROR: writing message to disk - %s", err.Error())
+				log.Fatalf("ERROR: writing message to disk - %s", err)
 			}
 			_, err = f.Write([]byte("\n"))
 			if err != nil {
-				log.Fatalf("ERROR: writing newline to disk - %s", err.Error())
+				log.Fatalf("ERROR: writing newline to disk - %s", err)
 			}
 			output[pos] = m
 			pos++
@@ -149,7 +154,7 @@ func (f *FileLogger) router(r *nsq.Consumer) {
 				log.Printf("syncing %d records to disk", pos)
 				err := f.Sync()
 				if err != nil {
-					log.Fatalf("ERROR: failed syncing messages - %s", err.Error())
+					log.Fatalf("ERROR: failed syncing messages - %s", err)
 				}
 				for pos > 0 {
 					pos--
@@ -326,7 +331,7 @@ func hasArg(s string) bool {
 	return false
 }
 
-func newReaderFileLogger(topic string) (*ReaderFileLogger, error) {
+func newConsumerFileLogger(topic string) (*ConsumerFileLogger, error) {
 	f, err := NewFileLogger(*gzipEnabled, *gzipLevel, *filenameFormat, topic)
 	if err != nil {
 		return nil, err
@@ -334,58 +339,65 @@ func newReaderFileLogger(topic string) (*ReaderFileLogger, error) {
 
 	cfg := nsq.NewConfig()
 	cfg.UserAgent = fmt.Sprintf("nsq_to_file/%s go-nsq/%s", util.BINARY_VERSION, nsq.VERSION)
-	err = util.ParseReaderOpts(cfg, readerOpts)
+	err = util.ParseOpts(cfg, consumerOpts)
 	if err != nil {
 		return nil, err
 	}
 	cfg.MaxInFlight = *maxInFlight
 
-	r, err := nsq.NewConsumer(topic, *channel, cfg)
+	consumer, err := nsq.NewConsumer(topic, *channel, cfg)
 	if err != nil {
 		return nil, err
 	}
-	r.SetLogger(log.New(os.Stderr, "", log.LstdFlags), nsq.LogLevelInfo)
 
-	r.AddHandler(f)
+	consumer.AddHandler(f)
 
-	for _, addrString := range nsqdTCPAddrs {
-		err := r.ConnectToNSQD(addrString)
-		if err != nil {
-			log.Fatalf(err.Error())
-		}
+	err = consumer.ConnectToNSQDs(nsqdTCPAddrs)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	for _, addrString := range lookupdHTTPAddrs {
-		log.Printf("lookupd addr %s", addrString)
-		err := r.ConnectToNSQLookupd(addrString)
-		if err != nil {
-			log.Fatalf(err.Error())
-		}
+	err = consumer.ConnectToNSQLookupds(lookupdHTTPAddrs)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	return &ReaderFileLogger{
-		R: r,
+	return &ConsumerFileLogger{
+		C: consumer,
 		F: f,
 	}, nil
 }
 
-func (t *TopicDiscoverer) startTopicRouter(logger *ReaderFileLogger) {
+func (t *TopicDiscoverer) startTopicRouter(logger *ConsumerFileLogger) {
 	t.wg.Add(1)
 	defer t.wg.Done()
-	go logger.F.router(logger.R)
+	go logger.F.router(logger.C)
 	<-logger.F.ExitChan
 }
 
-func (t *TopicDiscoverer) syncTopics(addrs []string) {
+func (t *TopicDiscoverer) allowTopicName(pattern string, name string) bool {
+	match, err := regexp.MatchString(pattern, name)
+	if err != nil {
+		return false
+	}
+
+	return match
+}
+
+func (t *TopicDiscoverer) syncTopics(addrs []string, pattern string) {
 	newTopics, err := lookupd.GetLookupdTopics(addrs)
 	if err != nil {
-		log.Print("ERROR: could not retrieve topic list: %s", err)
+		log.Printf("ERROR: could not retrieve topic list: %s", err)
 	}
 	for _, topic := range newTopics {
 		if _, ok := t.topics[topic]; !ok {
-			logger, err := newReaderFileLogger(topic)
+			if !t.allowTopicName(pattern, topic) {
+				log.Println("Skipping topic ", topic, "as it didn't match required pattern:", pattern)
+				continue
+			}
+			logger, err := newConsumerFileLogger(topic)
 			if err != nil {
-				log.Printf("ERROR: couldn't create logger for new topic %s: %s", topic, err.Error())
+				log.Printf("ERROR: couldn't create logger for new topic %s: %s", topic, err)
 				continue
 			}
 			t.topics[topic] = logger
@@ -394,32 +406,32 @@ func (t *TopicDiscoverer) syncTopics(addrs []string) {
 	}
 }
 
-func (t *TopicDiscoverer) stopReaderFileLoggers() {
+func (t *TopicDiscoverer) stop() {
 	for _, topic := range t.topics {
 		topic.F.termChan <- true
 	}
 }
 
-func (t *TopicDiscoverer) hupReaderFileLoggers() {
+func (t *TopicDiscoverer) hup() {
 	for _, topic := range t.topics {
 		topic.F.hupChan <- true
 	}
 }
 
-func (t *TopicDiscoverer) watch(addrs []string, sync bool) {
+func (t *TopicDiscoverer) watch(addrs []string, sync bool, pattern string) {
 	ticker := time.Tick(*topicPollRate)
 	for {
 		select {
 		case <-ticker:
 			if sync {
-				t.syncTopics(addrs)
+				t.syncTopics(addrs, pattern)
 			}
 		case <-t.termChan:
-			t.stopReaderFileLoggers()
+			t.stop()
 			t.wg.Wait()
 			return
 		case <-t.hupChan:
-			t.hupReaderFileLoggers()
+			t.hup()
 		}
 	}
 }
@@ -433,16 +445,16 @@ func main() {
 	}
 
 	if *channel == "" {
-		log.Fatalf("--channel is required")
+		log.Fatal("--channel is required")
 	}
 
 	var topicsFromNSQLookupd bool
 
 	if len(nsqdTCPAddrs) == 0 && len(lookupdHTTPAddrs) == 0 {
-		log.Fatalf("--nsqd-tcp-address or --lookupd-http-address required.")
+		log.Fatal("--nsqd-tcp-address or --lookupd-http-address required.")
 	}
 	if len(nsqdTCPAddrs) != 0 && len(lookupdHTTPAddrs) != 0 {
-		log.Fatalf("use --nsqd-tcp-address or --lookupd-http-address not both")
+		log.Fatal("use --nsqd-tcp-address or --lookupd-http-address not both")
 	}
 
 	if *gzipLevel < 1 || *gzipLevel > 9 {
@@ -471,7 +483,7 @@ func main() {
 
 	if len(topics) < 1 {
 		if len(lookupdHTTPAddrs) < 1 {
-			log.Fatalf("use --topic to list at least one topic to subscribe to or specify at least one --lookupd-http-address to subscribe to all its topics")
+			log.Fatal("use --topic to list at least one topic to subscribe to or specify at least one --lookupd-http-address to subscribe to all its topics")
 		}
 		topicsFromNSQLookupd = true
 		var err error
@@ -482,13 +494,18 @@ func main() {
 	}
 
 	for _, topic := range topics {
-		logger, err := newReaderFileLogger(topic)
+		if !discoverer.allowTopicName(*topicPattern, topic) {
+			log.Println("Skipping topic", topic, "as it didn't match required pattern:", *topicPattern)
+			continue
+		}
+
+		logger, err := newConsumerFileLogger(topic)
 		if err != nil {
-			log.Fatalf("ERROR: couldn't create logger for topic %s: %s", topic, err.Error())
+			log.Fatalf("ERROR: couldn't create logger for topic %s: %s", topic, err)
 		}
 		discoverer.topics[topic] = logger
 		go discoverer.startTopicRouter(logger)
 	}
 
-	discoverer.watch(lookupdHTTPAddrs, topicsFromNSQLookupd)
+	discoverer.watch(lookupdHTTPAddrs, topicsFromNSQLookupd, *topicPattern)
 }

@@ -1,25 +1,30 @@
 #!/bin/bash
 
-# build binary distributions for linux/amd64 and darwin/amd64
+# Exit on failed commands
+set -e
 
-export GOPATH=$(godep path):$GOPATH
+# build binary distributions for linux/amd64 and darwin/amd64
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mkdir -p $DIR/dist
 
+mkdir -p $DIR/.godeps
+export GOPATH=$DIR/.godeps:$GOPATH
+gpm install
+
 os=$(go env GOOS)
 arch=$(go env GOARCH)
-version=$(cat $DIR/util/binary_version.go | grep "const BINARY_VERSION" | awk '{print $NF}' | sed 's/"//g')
+version=$(awk '/const BINARY_VERSION/ {print $NF}' < $DIR/util/binary_version.go | sed 's/"//g')
 goversion=$(go version | awk '{print $3}')
 
 echo "... running tests"
-./test.sh || exit 1
+./test.sh
 
 for os in linux darwin; do
     echo "... building v$version for $os/$arch"
     BUILD=$(mktemp -d -t nsq)
     TARGET="nsq-$version.$os-$arch.$goversion"
-    GOOS=$os GOARCH=$arch CGO_ENABLED=0 make || exit 1
+    GOOS=$os GOARCH=$arch CGO_ENABLED=0 make
     make DESTDIR=$BUILD/$TARGET PREFIX= install
     pushd $BUILD
     tar czvf $TARGET.tar.gz $TARGET

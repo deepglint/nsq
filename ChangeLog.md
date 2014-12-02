@@ -2,6 +2,87 @@
 
 ## Binaries
 
+### 0.3.0 - 2014-11-18
+
+**Upgrading from 0.2.31**: No backwards incompatible changes.
+
+This release includes a slew of bug fixes and few key feature additions.
+
+The biggest functional change is that `nsqd` no longer decrements its `RDY` count for clients. This
+means that client libraries no longer have to periodically re-send `RDY`. For some context, `nsqd`
+already provided back-pressure due to the fact that a client must respond to messages before
+receiving new ones. The decremented `RDY` count only made the implementation of the server and
+client more complex without additional benefit. Now the `RDY` command can be treated as an "on/off"
+switch. For details see #404 and the associated changes in bitly/go-nsq#83 and bitly/pynsq#98.
+
+The second biggest change (and oft-requested feature!) is `#ephemeral` topics. Their behavior
+mirrors that of channels. This feature is incredibly useful for situations where you're using
+topics to "route" messages to consumers (like RPC) or when a backlog of messages is undesirable.
+
+There are now scripts in the `bench` directory that automate the process of running a distributed
+benchmark.  This is a work-in-progress, but it already provides a closer-to-production setup and
+therefore more accurate results.  There's much work to do here!
+
+A whole bunch of bugs were fixed - notably all were 3rd-party contributions! Thanks!
+
+ * #305 - `#ephemeral` topics
+ * #404/#459 - don't decr `RDY` / send `RDY` before `FIN`/`REQ`
+ * #472 - improve `nsqd` `diskqueue` sync strategies
+ * #488 - ability to filter topics by regex in `nsq_to_file` (thanks @lxfontes)
+ * #438 - distributed pub-sub benchmark scripts
+ * #448 - better `nsqd` `IOLoop` logging (thanks @rexposadas)
+ * #458 - switch to [gpm](https://github.com/pote/gpm) for builds
+
+Bugs:
+
+ * #493 - ensure all `nsqd` `Notify()` goroutines have exited prior to shutdown (thanks @allgeek)
+ * #492 - ensure `diskqueue` syncs at end of benchmarks (thanks @Dieterbe)
+ * #490 - de-flake `TestPauseMetadata` (thanks @allgeek)
+ * #486 - require ports to be specified for daemons (thanks @jnewmano)
+ * #482 - better bash in `dist.sh` (thanks @losinggeneration)
+ * #480 - fix panic when `nsqadmin` checks stats for missing topic (thanks @jnewmano)
+ * #469 - fix panic when misbehaving client sends corrupt command (thanks @prio)
+ * #461 - fix panic when `nsqd` decodes corrupt message data (thanks @twmb)
+ * #454/#455 - fix 32-bit atomic ops in `nsq_to_nsq`/`nsq_to_http` (thanks @leshik)
+ * #451 - fix `go get` compatibility (thanks @adams-sarah)
+
+### 0.2.31 - 2014-08-26
+
+**Upgrading from 0.2.30**: No backwards incompatible changes.
+
+This release includes a few key changes. First, we improved feedback and back-pressure when `nsqd`
+writes to disk. Previously this was asynchronous and would result in clients not knowing that their
+`PUB` had failed. Interestingly, this refactoring improved performance of `PUB` by 41%, by removing
+the topic's goroutine responsible for message routing in favor of `N:N` Go channel communication.
+For details see #437.
+
+@paddyforan contributed official Dockerfiles that are now built automatically via Docker Hub.
+Please begin to use (and improve these) as the various older images we had been maintaining will be
+deprecated.
+
+The utility apps deprecated the `--reader-opt` flag in favor of `--consumer-opt` and `nsq_to_nsq`
+and `to_nsq` received a `--producer-opt` flag, for configuring details of the connection publishing
+to `nsqd`. Additionally, it is now possible to configure client side TLS certificates via
+`tls_cert` and `tls_key` opts.
+
+As usual, we fixed a few minor bugs, see below for details.
+
+New Features / Enhancements:
+
+ * #422/#437 - `nsqd`: diskqueue error feedback/backpressure (thanks @boyand)
+ * #412 - official Dockerfiles for `nsqd`, `nsqlookupd`, `nsqadmin` (thanks @paddyforan)
+ * #442 - utilities: add `--consumer-opt` alias for `--reader-opt` and
+          add `--producer-opt` to `nsq_to_nsq` (also support configuration
+          of `tls_cert` and `tls_key`)
+ * #448 - `nsqd`: improve IOLoop error messages (thanks @rexposadas)
+
+Bugs:
+
+ * #440 - `nsqd`: fixed statsd GC stats reporting (thanks @jphines)
+ * #434/#435 - refactored/stabilized tests and logging
+ * #429 - `nsqd`: improve handling/documentation of `--worker-id` (thanks @bschwartz)
+ * #428 - `nsqd`: `IDENTIFY` should respond with materialized `msg_timeout` (thanks @visionmedia)
+
 ### 0.2.30 - 2014-07-28
 
 **Upgrading from 0.2.29**: No backwards incompatible changes.

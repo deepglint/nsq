@@ -39,11 +39,6 @@ func main() {
 	}
 
 	signalChan := make(chan os.Signal, 1)
-	exitChan := make(chan int)
-	go func() {
-		<-signalChan
-		exitChan <- 1
-	}()
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 
 	var cfg map[string]interface{}
@@ -58,9 +53,7 @@ func main() {
 	options.Resolve(opts, flagSet, cfg)
 	daemon := nsqlookupd.NewNSQLookupd(opts)
 
-	log.Println(util.Version("nsqlookupd"))
-
 	daemon.Main()
-	<-exitChan
+	<-signalChan
 	daemon.Exit()
 }

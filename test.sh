@@ -28,12 +28,8 @@ cleanup() {
 }
 trap cleanup INT TERM EXIT
 
-go test -v -timeout 60s ./...
-race="-race"
-if go version | grep -q go1.0; then
-    race=""
-fi
-GOMAXPROCS=4 go test -v -timeout 60s $race ./...
+go test -timeout 60s ./...
+GOMAXPROCS=4 go test -timeout 60s -race ./...
 
 # no tests, but a build is something
 for dir in nsqadmin apps/* bench/*; do

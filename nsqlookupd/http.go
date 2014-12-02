@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	httpprof "net/http/pprof"
 	"sync/atomic"
@@ -13,7 +12,7 @@ import (
 )
 
 type httpServer struct {
-	context *Context
+	ctx *Context
 }
 
 func (s *httpServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -29,7 +28,7 @@ func (s *httpServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	err = s.debugRouter(w, req)
 	if err != nil {
-		log.Printf("ERROR: %s", err)
+		s.ctx.nsqlookupd.logf("ERROR: %s", err)
 		util.ApiResponse(w, 404, "NOT_FOUND", nil)
 	}
 }
@@ -142,7 +141,7 @@ func (s *httpServer) doInfo(req *http.Request) (interface{}, error) {
 }
 
 func (s *httpServer) doTopics(req *http.Request) (interface{}, error) {
-	topics := s.context.nsqlookupd.DB.FindRegistrations("topic", "*", "").Keys()
+	topics := s.ctx.nsqlookupd.DB.FindRegistrations("topic", "*", "").Keys()
 	return map[string]interface{}{
 		"topics": topics,
 	}, nil
@@ -159,7 +158,7 @@ func (s *httpServer) doChannels(req *http.Request) (interface{}, error) {
 		return nil, util.HTTPError{400, "MISSING_ARG_TOPIC"}
 	}
 
-	channels := s.context.nsqlookupd.DB.FindRegistrations("channel", topicName, "*").SubKeys()
+	channels := s.ctx.nsqlookupd.DB.FindRegistrations("channel", topicName, "*").SubKeys()
 	return map[string]interface{}{
 		"channels": channels,
 	}, nil
@@ -176,15 +175,15 @@ func (s *httpServer) doLookup(req *http.Request) (interface{}, error) {
 		return nil, util.HTTPError{400, "MISSING_ARG_TOPIC"}
 	}
 
-	registration := s.context.nsqlookupd.DB.FindRegistrations("topic", topicName, "")
+	registration := s.ctx.nsqlookupd.DB.FindRegistrations("topic", topicName, "")
 	if len(registration) == 0 {
 		return nil, util.HTTPError{404, "TOPIC_NOT_FOUND"}
 	}
 
-	channels := s.context.nsqlookupd.DB.FindRegistrations("channel", topicName, "*").SubKeys()
-	producers := s.context.nsqlookupd.DB.FindProducers("topic", topicName, "")
-	producers = producers.FilterByActive(s.context.nsqlookupd.options.InactiveProducerTimeout,
-		s.context.nsqlookupd.options.TombstoneLifetime)
+	channels := s.ctx.nsqlookupd.DB.FindRegistrations("channel", topicName, "*").SubKeys()
+	producers := s.ctx.nsqlookupd.DB.FindProducers("topic", topicName, "")
+	producers = producers.FilterByActive(s.ctx.nsqlookupd.opts.InactiveProducerTimeout,
+		s.ctx.nsqlookupd.opts.TombstoneLifetime)
 	return map[string]interface{}{
 		"channels":  channels,
 		"producers": producers.PeerInfo(),
@@ -206,9 +205,9 @@ func (s *httpServer) doCreateTopic(req *http.Request) (interface{}, error) {
 		return nil, util.HTTPError{400, "INVALID_ARG_TOPIC"}
 	}
 
-	log.Printf("DB: adding topic(%s)", topicName)
+	s.ctx.nsqlookupd.logf("DB: adding topic(%s)", topicName)
 	key := Registration{"topic", topicName, ""}
-	s.context.nsqlookupd.DB.AddRegistration(key)
+	s.ctx.nsqlookupd.DB.AddRegistration(key)
 
 	return nil, nil
 }
@@ -224,16 +223,16 @@ func (s *httpServer) doDeleteTopic(req *http.Request) (interface{}, error) {
 		return nil, util.HTTPError{400, "MISSING_ARG_TOPIC"}
 	}
 
-	registrations := s.context.nsqlookupd.DB.FindRegistrations("channel", topicName, "*")
+	registrations := s.ctx.nsqlookupd.DB.FindRegistrations("channel", topicName, "*")
 	for _, registration := range registrations {
-		log.Printf("DB: removing channel(%s) from topic(%s)", registration.SubKey, topicName)
-		s.context.nsqlookupd.DB.RemoveRegistration(registration)
+		s.ctx.nsqlookupd.logf("DB: removing channel(%s) from topic(%s)", registration.SubKey, topicName)
+		s.ctx.nsqlookupd.DB.RemoveRegistration(registration)
 	}
 
-	registrations = s.context.nsqlookupd.DB.FindRegistrations("topic", topicName, "")
+	registrations = s.ctx.nsqlookupd.DB.FindRegistrations("topic", topicName, "")
 	for _, registration := range registrations {
-		log.Printf("DB: removing topic(%s)", topicName)
-		s.context.nsqlookupd.DB.RemoveRegistration(registration)
+		s.ctx.nsqlookupd.logf("DB: removing topic(%s)", topicName)
+		s.ctx.nsqlookupd.DB.RemoveRegistration(registration)
 	}
 
 	return nil, nil
@@ -255,8 +254,8 @@ func (s *httpServer) doTombstoneTopicProducer(req *http.Request) (interface{}, e
 		return nil, util.HTTPError{400, "MISSING_ARG_NODE"}
 	}
 
-	log.Printf("DB: setting tombstone for producer@%s of topic(%s)", node, topicName)
-	producers := s.context.nsqlookupd.DB.FindProducers("topic", topicName, "")
+	s.ctx.nsqlookupd.logf("DB: setting tombstone for producer@%s of topic(%s)", node, topicName)
+	producers := s.ctx.nsqlookupd.DB.FindProducers("topic", topicName, "")
 	for _, p := range producers {
 		thisNode := fmt.Sprintf("%s:%d", p.peerInfo.BroadcastAddress, p.peerInfo.HttpPort)
 		if thisNode == node {
@@ -278,13 +277,13 @@ func (s *httpServer) doCreateChannel(req *http.Request) (interface{}, error) {
 		return nil, util.HTTPError{400, err.Error()}
 	}
 
-	log.Printf("DB: adding channel(%s) in topic(%s)", channelName, topicName)
+	s.ctx.nsqlookupd.logf("DB: adding channel(%s) in topic(%s)", channelName, topicName)
 	key := Registration{"channel", topicName, channelName}
-	s.context.nsqlookupd.DB.AddRegistration(key)
+	s.ctx.nsqlookupd.DB.AddRegistration(key)
 
-	log.Printf("DB: adding topic(%s)", topicName)
+	s.ctx.nsqlookupd.logf("DB: adding topic(%s)", topicName)
 	key = Registration{"topic", topicName, ""}
-	s.context.nsqlookupd.DB.AddRegistration(key)
+	s.ctx.nsqlookupd.DB.AddRegistration(key)
 
 	return nil, nil
 }
@@ -300,14 +299,14 @@ func (s *httpServer) doDeleteChannel(req *http.Request) (interface{}, error) {
 		return nil, util.HTTPError{400, err.Error()}
 	}
 
-	registrations := s.context.nsqlookupd.DB.FindRegistrations("channel", topicName, channelName)
+	registrations := s.ctx.nsqlookupd.DB.FindRegistrations("channel", topicName, channelName)
 	if len(registrations) == 0 {
 		return nil, util.HTTPError{404, "CHANNEL_NOT_FOUND"}
 	}
 
-	log.Printf("DB: removing channel(%s) from topic(%s)", channelName, topicName)
+	s.ctx.nsqlookupd.logf("DB: removing channel(%s) from topic(%s)", channelName, topicName)
 	for _, registration := range registrations {
-		s.context.nsqlookupd.DB.RemoveRegistration(registration)
+		s.ctx.nsqlookupd.DB.RemoveRegistration(registration)
 	}
 
 	return nil, nil
@@ -326,20 +325,20 @@ type node struct {
 
 func (s *httpServer) doNodes(req *http.Request) (interface{}, error) {
 	// dont filter out tombstoned nodes
-	producers := s.context.nsqlookupd.DB.FindProducers("client", "", "").FilterByActive(
-		s.context.nsqlookupd.options.InactiveProducerTimeout, 0)
+	producers := s.ctx.nsqlookupd.DB.FindProducers("client", "", "").FilterByActive(
+		s.ctx.nsqlookupd.opts.InactiveProducerTimeout, 0)
 	nodes := make([]*node, len(producers))
 	for i, p := range producers {
-		topics := s.context.nsqlookupd.DB.LookupRegistrations(p.peerInfo.id).Filter("topic", "*", "").Keys()
+		topics := s.ctx.nsqlookupd.DB.LookupRegistrations(p.peerInfo.id).Filter("topic", "*", "").Keys()
 
 		// for each topic find the producer that matches this peer
 		// to add tombstone information
 		tombstones := make([]bool, len(topics))
 		for j, t := range topics {
-			topicProducers := s.context.nsqlookupd.DB.FindProducers("topic", t, "")
+			topicProducers := s.ctx.nsqlookupd.DB.FindProducers("topic", t, "")
 			for _, tp := range topicProducers {
 				if tp.peerInfo == p.peerInfo {
-					tombstones[j] = tp.IsTombstoned(s.context.nsqlookupd.options.TombstoneLifetime)
+					tombstones[j] = tp.IsTombstoned(s.ctx.nsqlookupd.opts.TombstoneLifetime)
 				}
 			}
 		}
@@ -362,11 +361,11 @@ func (s *httpServer) doNodes(req *http.Request) (interface{}, error) {
 }
 
 func (s *httpServer) doDebug(req *http.Request) (interface{}, error) {
-	s.context.nsqlookupd.DB.RLock()
-	defer s.context.nsqlookupd.DB.RUnlock()
+	s.ctx.nsqlookupd.DB.RLock()
+	defer s.ctx.nsqlookupd.DB.RUnlock()
 
 	data := make(map[string][]map[string]interface{})
-	for r, producers := range s.context.nsqlookupd.DB.registrationMap {
+	for r, producers := range s.ctx.nsqlookupd.DB.registrationMap {
 		key := r.Category + ":" + r.Key + ":" + r.SubKey
 		for _, p := range producers {
 			m := map[string]interface{}{

@@ -1,18 +1,8 @@
-#Set the base image to use to Ubuntu
-FROM 192.168.1.72:5000/ubuntu:trusty
+FROM nsqio/nsq:latest
 
-#Set the file maintainer (your name- the file's author)
+RUN cd /gopath/src/github.com/bitly/nsq/apps/nsqd && go build .
+VOLUME ["/data"]
+EXPOSE 4150
+EXPOSE 4151
 
-MAINTAINER Yan Huang
-
-
-#Add files to the image
-
-RUN mkdir -p root/pollmaster
-
-ADD nsqd root/pollmaster/pollmaster
-
-RUN chmod +x root/pollmaster/pollmaster
-
-WORKDIR root/pollmaster
-
+ENTRYPOINT ["/gopath/src/github.com/bitly/nsq/apps/nsqd/nsqd", "--data-path=/data"]

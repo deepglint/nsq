@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"container/heap"
 	"errors"
-	"log"
 	"math"
 	"strings"
 	"sync"
@@ -45,23 +44,22 @@ type Channel struct {
 
 	topicName string
 	name      string
-	context   *context
+	ctx       *context
 
 	backend BackendQueue
 
-	incomingMsgChan chan *Message
-	memoryMsgChan   chan *Message
-	clientMsgChan   chan *Message
-	exitChan        chan int
-	waitGroup       util.WaitGroupWrapper
-	exitFlag        int32
+	memoryMsgChan chan *Message
+	clientMsgChan chan *Message
+	exitChan      chan int
+	waitGroup     util.WaitGroupWrapper
+	exitFlag      int32
 
 	// state tracking
-	clients          map[int64]Consumer
-	paused           int32
-	ephemeralChannel bool
-	deleteCallback   func(*Channel)
-	deleter          sync.Once
+	clients        map[int64]Consumer
+	paused         int32
+	ephemeral      bool
+	deleteCallback func(*Channel)
+	deleter        sync.Once
 
 	// Stats tracking
 	e2eProcessingLatencyStream *util.Quantile
@@ -79,55 +77,54 @@ type Channel struct {
 }
 
 // NewChannel creates a new instance of the Channel type and returns a pointer
-func NewChannel(topicName string, channelName string, context *context,
+func NewChannel(topicName string, channelName string, ctx *context,
 	deleteCallback func(*Channel)) *Channel {
 
 	c := &Channel{
-		topicName:       topicName,
-		name:            channelName,
-		incomingMsgChan: make(chan *Message, 1),
-		memoryMsgChan:   make(chan *Message, context.nsqd.options.MemQueueSize),
-		clientMsgChan:   make(chan *Message),
-		exitChan:        make(chan int),
-		clients:         make(map[int64]Consumer),
-		deleteCallback:  deleteCallback,
-		context:         context,
+		topicName:      topicName,
+		name:           channelName,
+		memoryMsgChan:  make(chan *Message, ctx.nsqd.opts.MemQueueSize),
+		clientMsgChan:  make(chan *Message),
+		exitChan:       make(chan int),
+		clients:        make(map[int64]Consumer),
+		deleteCallback: deleteCallback,
+		ctx:            ctx,
 	}
-	if len(context.nsqd.options.E2EProcessingLatencyPercentiles) > 0 {
+	if len(ctx.nsqd.opts.E2EProcessingLatencyPercentiles) > 0 {
 		c.e2eProcessingLatencyStream = util.NewQuantile(
-			context.nsqd.options.E2EProcessingLatencyWindowTime,
-			context.nsqd.options.E2EProcessingLatencyPercentiles,
+			ctx.nsqd.opts.E2EProcessingLatencyWindowTime,
+			ctx.nsqd.opts.E2EProcessingLatencyPercentiles,
 		)
 	}
 
 	c.initPQ()
 
 	if strings.HasSuffix(channelName, "#ephemeral") {
-		c.ephemeralChannel = true
+		c.ephemeral = true
 		c.backend = newDummyBackendQueue()
 	} else {
 		// backend names, for uniqueness, automatically include the topic...
 		backendName := getBackendName(topicName, channelName)
 		c.backend = newDiskQueue(backendName,
-			context.nsqd.options.DataPath,
-			context.nsqd.options.MaxBytesPerFile,
-			context.nsqd.options.SyncEvery,
-			context.nsqd.options.SyncTimeout)
+			ctx.nsqd.opts.DataPath,
+			ctx.nsqd.opts.MaxBytesPerFile,
+			ctx.nsqd.opts.SyncEvery,
+			ctx.nsqd.opts.SyncTimeout,
+			ctx.nsqd.opts.Logger)
 	}
 
 	go c.messagePump()
 
-	c.waitGroup.Wrap(func() { c.router() })
 	c.waitGroup.Wrap(func() { c.deferredWorker() })
 	c.waitGroup.Wrap(func() { c.inFlightWorker() })
 
-	go c.context.nsqd.Notify(c)
+	c.ctx.nsqd.Notify(c)
 
 	return c
 }
 
 func (c *Channel) initPQ() {
-	pqSize := int(math.Max(1, float64(c.context.nsqd.options.MemQueueSize)/10))
+	pqSize := int(math.Max(1, float64(c.ctx.nsqd.opts.MemQueueSize)/10))
 
 	c.inFlightMessages = make(map[MessageID]*Message)
 	c.deferredMessages = make(map[MessageID]*pqueue.Item)
@@ -162,13 +159,13 @@ func (c *Channel) exit(deleted bool) error {
 	}
 
 	if deleted {
-		log.Printf("CHANNEL(%s): deleting", c.name)
+		c.ctx.nsqd.logf("CHANNEL(%s): deleting", c.name)
 
 		// since we are explicitly deleting a channel (not just at system exit time)
 		// de-register this from the lookupd
-		go c.context.nsqd.Notify(c)
+		c.ctx.nsqd.Notify(c)
 	} else {
-		log.Printf("CHANNEL(%s): closing", c.name)
+		c.ctx.nsqd.logf("CHANNEL(%s): closing", c.name)
 	}
 
 	// this forceably closes client connections
@@ -179,11 +176,6 @@ func (c *Channel) exit(deleted bool) error {
 	c.RUnlock()
 
 	close(c.exitChan)
-
-	// handle race condition w/ things writing into incomingMsgChan
-	c.Lock()
-	close(c.incomingMsgChan)
-	c.Unlock()
 
 	// synchronize the close of router() and pqWorkers (2)
 	c.waitGroup.Wait()
@@ -235,12 +227,12 @@ func (c *Channel) flush() error {
 	// messagePump is responsible for closing the channel it writes to
 	// this will read until its closed (exited)
 	for msg := range c.clientMsgChan {
-		log.Printf("CHANNEL(%s): recovered buffered message from clientMsgChan", c.name)
+		c.ctx.nsqd.logf("CHANNEL(%s): recovered buffered message from clientMsgChan", c.name)
 		writeMessageToBackend(&msgBuf, msg, c.backend)
 	}
 
 	if len(c.memoryMsgChan) > 0 || len(c.inFlightMessages) > 0 || len(c.deferredMessages) > 0 {
-		log.Printf("CHANNEL(%s): flushing %d memory %d in-flight %d deferred messages to backend",
+		c.ctx.nsqd.logf("CHANNEL(%s): flushing %d memory %d in-flight %d deferred messages to backend",
 			c.name, len(c.memoryMsgChan), len(c.inFlightMessages), len(c.deferredMessages))
 	}
 
@@ -249,7 +241,7 @@ func (c *Channel) flush() error {
 		case msg := <-c.memoryMsgChan:
 			err := writeMessageToBackend(&msgBuf, msg, c.backend)
 			if err != nil {
-				log.Printf("ERROR: failed to write message to backend - %s", err.Error())
+				c.ctx.nsqd.logf("ERROR: failed to write message to backend - %s", err)
 			}
 		default:
 			goto finish
@@ -260,7 +252,7 @@ finish:
 	for _, msg := range c.inFlightMessages {
 		err := writeMessageToBackend(&msgBuf, msg, c.backend)
 		if err != nil {
-			log.Printf("ERROR: failed to write message to backend - %s", err.Error())
+			c.ctx.nsqd.logf("ERROR: failed to write message to backend - %s", err)
 		}
 	}
 
@@ -268,7 +260,7 @@ finish:
 		msg := item.Value.(*Message)
 		err := writeMessageToBackend(&msgBuf, msg, c.backend)
 		if err != nil {
-			log.Printf("ERROR: failed to write message to backend - %s", err.Error())
+			c.ctx.nsqd.logf("ERROR: failed to write message to backend - %s", err)
 		}
 	}
 
@@ -304,27 +296,46 @@ func (c *Channel) doPause(pause bool) error {
 	}
 	c.RUnlock()
 
-	c.context.nsqd.Lock()
-	defer c.context.nsqd.Unlock()
+	c.ctx.nsqd.Lock()
+	defer c.ctx.nsqd.Unlock()
 	// pro-actively persist metadata so in case of process failure
 	// nsqd won't suddenly (un)pause a channel
-	return c.context.nsqd.PersistMetadata()
+	return c.ctx.nsqd.PersistMetadata()
 }
 
 func (c *Channel) IsPaused() bool {
 	return atomic.LoadInt32(&c.paused) == 1
 }
 
-// PutMessage writes to the appropriate incoming message channel
-// (which will be routed asynchronously)
-func (c *Channel) PutMessage(msg *Message) error {
+// PutMessage writes a Message to the queue
+func (c *Channel) PutMessage(m *Message) error {
 	c.RLock()
 	defer c.RUnlock()
 	if atomic.LoadInt32(&c.exitFlag) == 1 {
 		return errors.New("exiting")
 	}
-	c.incomingMsgChan <- msg
+	err := c.put(m)
+	if err != nil {
+		return err
+	}
 	atomic.AddUint64(&c.messageCount, 1)
+	return nil
+}
+
+func (c *Channel) put(m *Message) error {
+	select {
+	case c.memoryMsgChan <- m:
+	default:
+		b := bufferPoolGet()
+		err := writeMessageToBackend(b, m, c.backend)
+		bufferPoolPut(b)
+		if err != nil {
+			c.ctx.nsqd.logf("CHANNEL(%s) ERROR: failed to write message to backend - %s",
+				c.name, err)
+			c.ctx.nsqd.SetHealth(err)
+			return err
+		}
+	}
 	return nil
 }
 
@@ -338,9 +349,9 @@ func (c *Channel) TouchMessage(clientID int64, id MessageID, clientMsgTimeout ti
 
 	newTimeout := time.Now().Add(clientMsgTimeout)
 	if newTimeout.Sub(msg.deliveryTS) >=
-		c.context.nsqd.options.MaxMsgTimeout {
+		c.ctx.nsqd.opts.MaxMsgTimeout {
 		// we would have gone over, set to the max
-		newTimeout = msg.deliveryTS.Add(c.context.nsqd.options.MaxMsgTimeout)
+		newTimeout = msg.deliveryTS.Add(c.ctx.nsqd.opts.MaxMsgTimeout)
 	}
 
 	msg.pri = newTimeout.UnixNano()
@@ -410,7 +421,7 @@ func (c *Channel) RemoveClient(clientID int64) {
 	}
 	delete(c.clients, clientID)
 
-	if len(c.clients) == 0 && c.ephemeralChannel == true {
+	if len(c.clients) == 0 && c.ephemeral == true {
 		go c.deleter.Do(func() { c.deleteCallback(c) })
 	}
 }
@@ -440,13 +451,16 @@ func (c *Channel) StartDeferredTimeout(msg *Message, timeout time.Duration) erro
 }
 
 // doRequeue performs the low level operations to requeue a message
-func (c *Channel) doRequeue(msg *Message) error {
+func (c *Channel) doRequeue(m *Message) error {
 	c.RLock()
 	defer c.RUnlock()
 	if atomic.LoadInt32(&c.exitFlag) == 1 {
 		return errors.New("exiting")
 	}
-	c.incomingMsgChan <- msg
+	err := c.put(m)
+	if err != nil {
+		return err
+	}
 	atomic.AddUint64(&c.requeueCount, 1)
 	return nil
 }
@@ -534,28 +548,6 @@ func (c *Channel) addToDeferredPQ(item *pqueue.Item) {
 	heap.Push(&c.deferredPQ, item)
 }
 
-// Router handles the muxing of incoming Channel messages, either writing
-// to the in-memory channel or to the backend
-func (c *Channel) router() {
-	var msgBuf bytes.Buffer
-	for msg := range c.incomingMsgChan {
-		select {
-		case c.memoryMsgChan <- msg:
-		default:
-			err := writeMessageToBackend(&msgBuf, msg, c.backend)
-			if err != nil {
-				log.Printf("CHANNEL(%s) ERROR: failed to write message to backend - %s",
-					c.name, err)
-				c.context.nsqd.SetHealth(err)
-			}
-		}
-	}
-
-	log.Printf("CHANNEL(%s): closing ... router", c.name)
-}
-
-
-
 // messagePump reads messages from either memory or backend and writes
 // to the client output go channel
 //
@@ -579,7 +571,7 @@ func (c *Channel) messagePump() {
 		case buf = <-c.backend.ReadChan():
 			msg, err = decodeMessage(buf)
 			if err != nil {
-				log.Printf("ERROR: failed to decode message - %s", err.Error())
+				c.ctx.nsqd.logf("ERROR: failed to decode message - %s", err)
 				continue
 			}
 		case <-c.exitChan:
@@ -595,7 +587,7 @@ func (c *Channel) messagePump() {
 	}
 
 exit:
-	log.Printf("CHANNEL(%s): closing ... messagePump", c.name)
+	c.ctx.nsqd.logf("CHANNEL(%s): closing ... messagePump", c.name)
 	close(c.clientMsgChan)
 }
 
@@ -644,7 +636,7 @@ func (c *Channel) inFlightWorker() {
 	}
 
 exit:
-	log.Printf("CHANNEL(%s): closing ... inFlightWorker", c.name)
+	c.ctx.nsqd.logf("CHANNEL(%s): closing ... inFlightWorker", c.name)
 	ticker.Stop()
 }
 
@@ -673,6 +665,6 @@ func (c *Channel) pqWorker(pq *pqueue.PriorityQueue, mutex *sync.Mutex, callback
 	}
 
 exit:
-	log.Printf("CHANNEL(%s): closing ... pqueue worker", c.name)
+	c.ctx.nsqd.logf("CHANNEL(%s): closing ... pqueue worker", c.name)
 	ticker.Stop()
 }

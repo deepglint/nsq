@@ -65,15 +65,13 @@ func main() {
 	if *config != "" {
 		_, err := toml.DecodeFile(*config, &cfg)
 		if err != nil {
-			log.Fatalf("ERROR: failed to load config file %s - %s", *config, err.Error())
+			log.Fatalf("ERROR: failed to load config file %s - %s", *config, err)
 		}
 	}
 
 	opts := NewNSQAdminOptions()
 	options.Resolve(opts, flagSet, cfg)
 	nsqadmin := NewNSQAdmin(opts)
-
-	log.Println(util.Version("nsqadmin"))
 
 	nsqadmin.Main()
 	<-exitChan

@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/deepglint/nsq/nsqd"
-	"github.com/deepglint/nsq/util"
+	"github.com/bitly/nsq/nsqd"
+	"github.com/bitly/nsq/util"
 	"github.com/mreiferson/go-options"
 )
 
@@ -93,12 +93,7 @@ func main() {
 		return
 	}
 
-	exitChan := make(chan int)
 	signalChan := make(chan os.Signal, 1)
-	go func() {
-		<-signalChan
-		exitChan <- 1
-	}()
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 
 	var cfg map[string]interface{}
@@ -113,15 +108,12 @@ func main() {
 	options.Resolve(opts, flagSet, cfg)
 	nsqd := nsqd.NewNSQD(opts)
 
-	log.Println(util.Version("nsqd"))
-	log.Printf("worker id %d", opts.ID)
-
 	nsqd.LoadMetadata()
 	err := nsqd.PersistMetadata()
 	if err != nil {
 		log.Fatalf("ERROR: failed to persist metadata - %s", err.Error())
 	}
 	nsqd.Main()
-	<-exitChan
+	<-signalChan
 	nsqd.Exit()
 }
