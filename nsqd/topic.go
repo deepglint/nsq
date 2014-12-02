@@ -155,7 +155,7 @@ func (t *Topic) PutMessage(m *Message) error {
 	if atomic.LoadInt32(&t.exitFlag) == 1 {
 		return errors.New("exiting")
 	}
-	err := t.put(m)
+	err := t.put2(m)
 	if err != nil {
 		return err
 	}
@@ -171,7 +171,7 @@ func (t *Topic) PutMessages(msgs []*Message) error {
 		return errors.New("exiting")
 	}
 	for _, m := range msgs {
-		err := t.put(m)
+		err := t.put2(m)
 		if err != nil {
 			return err
 		}
@@ -195,6 +195,17 @@ func (t *Topic) put(m *Message) error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (t *Topic) put2(m *Message) error {
+	depth:=len(t.memoryMsgChan)
+	if(int64(depth)==t.ctx.nsqd.opts.MemQueueSize){
+		lt.ctx.nsqd.logf("The Topic channel is full")
+		<-t.memoryMsgChan
+	}
+	t.memoryMsgChan <- m
+
 	return nil
 }
 
