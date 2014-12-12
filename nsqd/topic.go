@@ -199,8 +199,8 @@ func (t *Topic) put(m *Message) error {
 }
 
 func (t *Topic) put2(m *Message) error {
-	depth:=len(t.memoryMsgChan)
-	if(int64(depth)==t.ctx.nsqd.opts.MemQueueSize){
+	depth := len(t.memoryMsgChan)
+	if int64(depth) == t.ctx.nsqd.opts.MemQueueSize {
 		lt.ctx.nsqd.logf("The Topic channel is full")
 		<-t.memoryMsgChan
 	}
