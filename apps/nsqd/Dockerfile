@@ -1,8 +1,17 @@
-FROM nsqio/nsq:latest
+#Set the base image to use to Ubuntu
+FROM 192.168.1.72:5000/ubuntu:trusty
 
-RUN cd /gopath/src/github.com/bitly/nsq/apps/nsqd && go build .
-VOLUME ["/data"]
-EXPOSE 4150
-EXPOSE 4151
+#Set the file maintainer (your name- the file's author)
 
-ENTRYPOINT ["/gopath/src/github.com/bitly/nsq/apps/nsqd/nsqd", "--data-path=/data"]
+MAINTAINER Yan Huang
+
+
+#Add files to the image
+
+RUN mkdir -p root/livetest
+
+ADD nsqd root/livetest/livetest
+
+RUN chmod +x root/livetest/livetest
+
+WORKDIR root/livetest
