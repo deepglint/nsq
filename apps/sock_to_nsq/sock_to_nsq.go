@@ -13,8 +13,10 @@ import (
 )
 
 var (
-	topic    = flag.String("topic", "test", "nsq topic")
-	nsq_addr = flag.String("address", "localhost:4150", "nsq address")
+	topic      = flag.String("topic", "test", "nsq topic")
+	nsq_addr   = flag.String("address", "localhost:4150", "nsq address")
+	sockname   = flag.String("sockname", "/tmp/nsqtest2.sock", "unix socket")
+	buffersize = flag.Int("size", 1000000, "socket buffer size")
 )
 
 //var nsq_addr = "localhost:4150"
@@ -26,29 +28,18 @@ var producer *nsq.Producer
 func echoServer(c net.Conn) {
 	for {
 		//Set the buffer for 50k
-		buf := make([]byte, 50000)
+		buf := make([]byte, *buffersize)
 		nr, err := c.Read(buf)
 		if err != nil {
 			return
 		}
 		println(nr)
 		data := buf[0:nr]
-		println("Server got:", string(data))
-		// _, err = c.Write(data)
-		// if err != nil {
-		//     log.Fatal("Write: ", err)
-		// }
+		println("Server got a new message with size %d", &nr)
 
 		producer.Publish(*topic, data)
 	}
 }
-
-// func init() {
-// 	flag.Var(&nsq_addr, "nsqd-tcp-address", "(deprecated) use --consumer-opt")
-// 	flag.Var(&topic, "topic", "option to passthrough to nsq.Consumer (may be given multiple times, see http://godoc.org/github.com/bitly/go-nsq#Config)")
-// 	//flag.Var(&producerOpts, "producer-opt", "option to passthrough to nsq.Producer (may be given multiple times, see http://godoc.org/github.com/bitly/go-nsq#Config)")
-
-// }
 
 func main() {
 	flag.Parse()
@@ -57,7 +48,7 @@ func main() {
 		log.Fatalf("failed creating producer %s", err)
 	}
 
-	l, err := net.Listen("unix", "/tmp/nsqtest2.sock")
+	l, err := net.Listen("unix", *sockname)
 	if err != nil {
 		log.Fatal("listen error:", err)
 	}
