@@ -13,10 +13,10 @@ import (
 )
 
 var (
-	topic      = flag.String("topic", "test", "nsq topic")
-	nsq_addr   = flag.String("address", "localhost:4150", "nsq address")
+	//topic      = flag.String("topic", "test", "nsq topic")
+	//nsq_addr   = flag.String("address", "localhost:4150", "nsq address")
 	sockname   = flag.String("sockname", "/tmp/nsqtest2.sock", "unix socket")
-	buffersize = flag.Int("size", 1000000, "socket buffer size")
+	buffersize = flag.Int("size", 10000, "socket buffer size")
 )
 
 //var nsq_addr = "localhost:4150"
@@ -33,20 +33,21 @@ func echoServer(c net.Conn) {
 		if err != nil {
 			return
 		}
-		println(nr)
-		data := buf[0:nr]
-		println("Server got a new message with size %d", &nr)
+		//println(nr)
+		println(int(buf[nr-1]))
+		//data := buf[0:nr]
+		println("Server got a new message with size %d", nr)
 
-		producer.Publish(*topic, data)
+		// producer.Publish(*topic, data)
 	}
 }
 
 func main() {
 	flag.Parse()
-	producer, err = nsq.NewProducer(*nsq_addr, pCfg)
-	if err != nil {
-		log.Fatalf("failed creating producer %s", err)
-	}
+	// producer, err = nsq.NewProducer(*nsq_addr, pCfg)
+	// if err != nil {
+	// 	log.Fatalf("failed creating producer %s", err)
+	// }
 
 	l, err := net.Listen("unix", *sockname)
 	if err != nil {

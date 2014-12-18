@@ -12,8 +12,6 @@ import (
 
 func main() {
 	fmt.Println("hello world")
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	cfg := nsq.NewConfig()
 
@@ -28,6 +26,9 @@ func main() {
 		fmt.Println("%v", m)
 		return nil
 	}))
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	err = consumer.ConnectToNSQD("localhost:4150")
 	if err != nil {
