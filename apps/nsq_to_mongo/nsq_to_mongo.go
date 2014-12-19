@@ -27,9 +27,95 @@ var (
 	password   = flag.String("password", "", "password for mongo db")
 )
 
+type NsqToMongo struct {
+	topic      string
+	channel    string
+	nsq_addr   string
+	database   string
+	collection string
+	mongo_addr string
+	user       string
+	password   string
+	avaliable  bool
+	session    *mgo.Session
+	table      *mgo.Collection
+	db         *mgo.Database
+	consumer   *nsq.Consumer
+}
+
+// (this *NsqToMongo) func check() error{
+// 	if this.topic==""{
+
+// 	}
+// }
+///connet to the nsqd and returns the error message
+func (this *NsqToMongo) ConnectToNsq() error {
+	cfg := nsq.NewConfig()
+	consumer, err := nsq.NewConsumer(this.topic, this.channel, cfg)
+
+	if err != nil {
+		fmt.Println("Error")
+		return err
+	}
+
+	consumer.AddHandler(nsq.HandlerFunc(this.HandleMessage))
+
+	err = consumer.ConnectToNSQD(this.nsq_addr)
+	if err != nil {
+		fmt.Println("Error connecting")
+		return err
+	}
+	this.consumer = consumer
+	return nil
+}
+func (this *NsqToMongo) ConnectToMongo() error {
+
+	mongo_addr := this.mongo_addr
+	session, err := mgo.Dial(mongo_addr)
+	for err != nil {
+		glog.Errorf("MongoDB Dial Error: %v", err)
+		glog.Errorf("waiting for 1 second ...")
+		time.Sleep(1000 * time.Millisecond)
+		session, err = mgo.Dial(mongo_addr)
+	}
+	//defer session.Close()
+	db := session.DB(*database)
+	session.SetMode(mgo.Monotonic, true)
+	table := db.C(*collection)
+	this.session = session
+	this.table = table
+	this.db = db
+	return nil
+}
+
+func (this *NsqToMongo) HandleMessage(m *nsq.Message) error {
+	fmt.Printf("%s", string(m.Body))
+	//err := bson.Unmarshal(m.Body, &out)
+	var out map[string]interface{}
+	err := json.Unmarshal(m.Body, &out)
+	if err != nil {
+		glog.Errorf("Error to unmarshal the json")
+	}
+	err = this.table.Insert(out)
+	//db.Insert(&this)
+	for err != nil {
+		glog.Errorf("Error saving event: %s", err)
+		this.ConnectToMongo()
+		err = this.table.Insert(out)
+		//return err
+	}
+	return nil
+}
+
+func (this *NsqToMongo) Close() error {
+	this.session.Close()
+	this.consumer.Stop()
+	return nil
+}
+
 func main() {
 	flag.Parse()
-	/// to check if the params valid
+	// /// to check if the params valid
 	if *topic == "" {
 		log.Fatalln("the topic should not be null, please use --topic=... ")
 	}
@@ -54,71 +140,31 @@ func main() {
 	if *database == "" {
 		log.Fatalln("the database name should not be null, please use --db=...")
 	}
-	///
-	/// connect to mongodb
-	println(*mongo_addr)
-	session, err := mgo.Dial(*mongo_addr)
-	for err != nil {
-		glog.Errorf("MongoDB Dial Error: %v", err)
-		glog.Errorf("waiting for 1 second ...")
-		time.Sleep(1000 * time.Millisecond)
-		session, err = mgo.Dial(*mongo_addr)
+
+	nsqtomongo := &NsqToMongo{
+		topic:      *topic,
+		channel:    *channel,
+		nsq_addr:   *nsq_addr,
+		collection: *collection,
+		user:       *user,
+		password:   *password,
+		mongo_addr: *mongo_addr,
+		database:   *database,
 	}
-	defer session.Close()
-	//
-	db := session.DB(*database)
-	// err = db.Login(*user, *password)
-	// if err != nil {
-	// 	glog.Errorf("MongoDB Login Error: %v", err)
-	// 	return
-	// }
-	// Optional. Switch the session to a monotonic behavior.
-	session.SetMode(mgo.Monotonic, true)
-	table := db.C(*collection)
-	///
+
+	_ = nsqtomongo.ConnectToMongo()
+
+	_ = nsqtomongo.ConnectToNsq()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	cfg := nsq.NewConfig()
-
-	consumer, err := nsq.NewConsumer(*topic, *channel, cfg)
-
-	if err != nil {
-		fmt.Println("Error")
-	}
-
-	consumer.AddHandler(nsq.HandlerFunc(func(m *nsq.Message) error {
-		// handle the message
-		// go routine to write the message into db
-		// var out = new(bson.D)
-		fmt.Printf("%s", string(m.Body))
-		//err := bson.Unmarshal(m.Body, &out)
-		var out map[string]interface{}
-		err := json.Unmarshal(m.Body, &out)
-		if err != nil {
-			glog.Errorf("Error to unmarshal the json")
-		}
-		err = table.Insert(out)
-		//db.Insert(&this)
-		if err != nil {
-			glog.Errorf("Error saving event: %s", err)
-			return err
-		}
-		return nil
-	}))
-
-	err = consumer.ConnectToNSQD(*nsq_addr)
-	if err != nil {
-		fmt.Println("Error connecting")
-	}
-
 	for {
 		select {
-		case <-consumer.StopChan:
+		case <-nsqtomongo.consumer.StopChan:
 			return
 		case <-sigChan:
-			consumer.Stop()
+			nsqtomongo.Close()
 		}
 	}
 }
