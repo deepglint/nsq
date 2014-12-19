@@ -23,8 +23,8 @@ var (
 	database   = flag.String("db", "", "data base name to insert data")
 	collection = flag.String("collection", "", "collection of mongo db")
 	mongo_addr = flag.String("mongoadd", "", "address of mongo db")
-	user       = flag.String("user", "", "user name for mongo db")
-	password   = flag.String("password", "", "password for mongo db")
+	user       = flag.String("user", "timeline", "user name for mongo db")
+	password   = flag.String("password", "deepdbdb", "password for mongo db")
 )
 
 type NsqToMongo struct {
@@ -80,6 +80,11 @@ func (this *NsqToMongo) ConnectToMongo() error {
 	}
 	//defer session.Close()
 	db := session.DB(*database)
+	err = db.Login(this.user, this.password)
+	if err != nil {
+		glog.Errorf("MongoDB Login Error: %v", err)
+		this.Close()
+	}
 	session.SetMode(mgo.Monotonic, true)
 	table := db.C(*collection)
 	this.session = session
@@ -98,11 +103,12 @@ func (this *NsqToMongo) HandleMessage(m *nsq.Message) error {
 	}
 	err = this.table.Insert(out)
 	//db.Insert(&this)
-	for err != nil {
+	if err != nil {
 		glog.Errorf("Error saving event: %s", err)
-		this.ConnectToMongo()
-		err = this.table.Insert(out)
+		//this.ConnectToMongo()
+		//err = this.table.Insert(out)
 		//return err
+		this.Close()
 	}
 	return nil
 }
@@ -128,12 +134,12 @@ func main() {
 	if *collection == "" {
 		log.Fatalln("the collection should not be null, please use --collection=... ")
 	}
-	if *user == "" {
-		log.Fatalln("the username to access mongo should not be nul, please use --user=...")
-	}
-	if *password == "" {
-		log.Fatalln("the password should not be null, please use --password=...")
-	}
+	// if *user == "" {
+	// 	log.Fatalln("the username to access mongo should not be nul, please use --user=...")
+	// }
+	// if *password == "" {
+	// 	log.Fatalln("the password should not be null, please use --password=...")
+	// }
 	if *mongo_addr == "" {
 		log.Fatalln("the mongodb address should not be null, please use --mongoadd=...")
 	}
@@ -151,7 +157,7 @@ func main() {
 		mongo_addr: *mongo_addr,
 		database:   *database,
 	}
-
+	println(nsqtomongo.user, nsqtomongo.password)
 	_ = nsqtomongo.ConnectToMongo()
 
 	_ = nsqtomongo.ConnectToNsq()
