@@ -1,19 +1,23 @@
 package main
 
 import (
+	//"bytes"
+	//"compress/gzip"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/deepglint/glog"
 	"github.com/deepglint/go-nsq"
 	"labix.org/v2/mgo"
-	//"labix.org/v2/mgo/bson"
+	"labix.org/v2/mgo/bson"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 	//"github.com/bitly/nsq/util"
+	"github.com/deepglint/muses/models"
+	//"github.com/deepglint/muses/util/jsontime"
 )
 
 var (
@@ -26,6 +30,7 @@ var (
 	user       = flag.String("user", "timeline", "user name for mongo db")
 	password   = flag.String("password", "deepdbdb", "password for mongo db")
 )
+var bsonEventChan chan models.BsonEvent
 
 type NsqToMongo struct {
 	topic      string
@@ -43,6 +48,12 @@ type NsqToMongo struct {
 	consumer   *nsq.Consumer
 }
 
+// type BsonEvent struct {
+// 	Id        bson.ObjectId       "_id" //`json:"_id,omitempty"` //auto generate, don't fill it
+// 	StartTime *jsontime.Timestamp //`bson:"starttime,omitempty" json:"starttime,omitempty"`
+// 	Raw       []byte
+// }
+
 // (this *NsqToMongo) func check() error{
 // 	if this.topic==""{
 
@@ -58,7 +69,7 @@ func (this *NsqToMongo) ConnectToNsq() error {
 		return err
 	}
 
-	consumer.AddHandler(nsq.HandlerFunc(this.HandleMessage))
+	consumer.AddHandler(nsq.HandlerFunc(this.EventMessageRouter))
 
 	err = consumer.ConnectToNSQD(this.nsq_addr)
 	if err != nil {
@@ -90,28 +101,85 @@ func (this *NsqToMongo) ConnectToMongo() error {
 	this.session = session
 	this.table = table
 	this.db = db
+
 	return nil
 }
 
-func (this *NsqToMongo) HandleMessage(m *nsq.Message) error {
-	fmt.Printf("%s", string(m.Body))
-	//err := bson.Unmarshal(m.Body, &out)
-	var out map[string]interface{}
-	err := json.Unmarshal(m.Body, &out)
+func (this *NsqToMongo) EventMessageHandler() {
+	session := this.session.Copy()
+	db := session.DB(this.database)
+	err := db.Login(this.user, this.password)
 	if err != nil {
-		glog.Errorf("Error to unmarshal the json")
-	}
-	err = this.table.Insert(out)
-	//db.Insert(&this)
-	if err != nil {
-		glog.Errorf("Error saving event: %s", err)
-		//this.ConnectToMongo()
-		//err = this.table.Insert(out)
-		//return err
+		glog.Errorf("MongoDB Login Error: %v", err)
 		this.Close()
 	}
+	table := db.C(this.collection)
+	//var newBsonEvent models.BsonEvent
+	for {
+		newBsonEvent := <-bsonEventChan
+		log.Println("Got the bsonEvent obj:%v", newBsonEvent)
+		err := table.Insert(newBsonEvent)
+		if err != nil {
+			glog.Errorf("Error saving event: %s", err)
+			session.Close()
+			break
+		}
+		log.Println("Saved Successful")
+	}
+}
+
+func (this *NsqToMongo) EventMessageRouter(m *nsq.Message) error {
+	log.Println("Come the msg:%s", string(m.Body))
+	var tmpEvent models.Event
+
+	err := json.Unmarshal(m.Body[:], &tmpEvent)
+	if err != nil {
+		glog.Errorln("Error when convert nsq msg body into Event obj")
+		return err
+	}
+	tmpEvent.Id = bson.NewObjectId()
+	bsonEvent, err2 := models.EventToBsonEvent(tmpEvent)
+	if err2 != nil {
+		glog.Errorln("Error when convert event obj into bson obj")
+		return err2
+	}
+	bsonEventChan <- *bsonEvent
 	return nil
 }
+
+// func (this *NsqToMongo) EventMessageRouter(m *nsq.Message) error {
+// 	fmt.Printf("%s", string(m.Body))
+// 	//err := bson.Unmarshal(m.Body, &out)
+// 	//var out map[string]interface{}
+// 	var tmp models.Event
+// 	err := json.Unmarshal(m.Body[:], &tmp)
+// 	if err != nil {
+// 		log.Printf("event unmarshal error: %v", err)
+// 		return nil
+// 	}
+
+// 	out := new(BsonEvent)
+// 	out.Id = tmp.Id
+// 	out.StartTime = tmp.StartTime
+// 	//log.Printf("bson object:%v", out)
+// 	var b bytes.Buffer
+// 	//w := gzip.NewWriter(&b)
+// 	w, _ := gzip.NewWriterLevel(&b, 9)
+// 	w.Write(m.Body)
+// 	w.Close()
+// 	out.Raw = b.Bytes()
+// 	log.Printf("the event bin obj:%v", out)
+// 	err = this.table.Insert(out)
+// 	//db.Insert(&this)
+// 	if err != nil {
+// 		glog.Errorf("Error saving event: %s", err)
+// 		//this.ConnectToMongo()
+// 		//err = this.table.Insert(out)
+// 		//return err
+// 		this.Close()
+// 	}
+// 	return nil
+// }
 
 func (this *NsqToMongo) Close() error {
 	this.session.Close()
@@ -120,6 +188,7 @@ func (this *NsqToMongo) Close() error {
 }
 
 func main() {
+	bsonEventChan = make(chan models.BsonEvent)
 	flag.Parse()
 	// /// to check if the params valid
 	if *topic == "" {
@@ -161,6 +230,8 @@ func main() {
 	_ = nsqtomongo.ConnectToMongo()
 
 	_ = nsqtomongo.ConnectToNsq()
+
+	go nsqtomongo.EventMessageHandler()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
