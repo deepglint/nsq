@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/deepglint/glog"
+	// "github.com/deepglint/glog"
 	"github.com/deepglint/go-nsq"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
@@ -21,13 +21,13 @@ import (
 )
 
 var (
-	topic      = flag.String("topic", "", "nsq topic")
-	channel    = flag.String("channel", "", "nsq channel to subscribe")
-	nsq_addr   = flag.String("address", "localhost:4150", "nsq address")
-	database   = flag.String("db", "", "data base name to insert data")
-	collection = flag.String("collection", "", "collection of mongo db")
-	mongo_addr = flag.String("mongoadd", "", "address of mongo db")
-	user       = flag.String("user", "timeline", "user name for mongo db")
+	topic      = flag.String("topic", "db_events", "nsq topic")
+	channel    = flag.String("channel", "nsq2mongo", "nsq channel to subscribe")
+	nsq_addr   = flag.String("address", "192.168.2.100:4150", "nsq address")
+	database   = flag.String("db", "libra", "data base name to insert data")
+	collection = flag.String("collection", "events", "collection of mongo db")
+	mongo_addr = flag.String("mongoadd", "192.168.2.100:27017", "address of mongo db")
+	user       = flag.String("user", "libra", "user name for mongo db")
 	password   = flag.String("password", "deepdbdb", "password for mongo db")
 )
 var bsonEventChan chan models.BsonEvent
@@ -84,8 +84,8 @@ func (this *NsqToMongo) ConnectToMongo() error {
 	mongo_addr := this.mongo_addr
 	session, err := mgo.Dial(mongo_addr)
 	for err != nil {
-		glog.Errorf("MongoDB Dial Error: %v", err)
-		glog.Errorf("waiting for 1 second ...")
+		log.Printf("MongoDB Dial Error: %v", err)
+		log.Printf("waiting for 1 second ...")
 		time.Sleep(1000 * time.Millisecond)
 		session, err = mgo.Dial(mongo_addr)
 	}
@@ -93,7 +93,7 @@ func (this *NsqToMongo) ConnectToMongo() error {
 	db := session.DB(*database)
 	err = db.Login(this.user, this.password)
 	if err != nil {
-		glog.Errorf("MongoDB Login Error: %v", err)
+		log.Printf("MongoDB Login Error: %v", err)
 		this.Close()
 	}
 	session.SetMode(mgo.Monotonic, true)
@@ -110,7 +110,7 @@ func (this *NsqToMongo) EventMessageHandler() {
 	db := session.DB(this.database)
 	err := db.Login(this.user, this.password)
 	if err != nil {
-		glog.Errorf("MongoDB Login Error: %v", err)
+		log.Printf("MongoDB Login Error: %v", err)
 		this.Close()
 	}
 	table := db.C(this.collection)
@@ -120,7 +120,7 @@ func (this *NsqToMongo) EventMessageHandler() {
 		log.Println("Got the bsonEvent obj:%v", newBsonEvent)
 		err := table.Insert(newBsonEvent)
 		if err != nil {
-			glog.Errorf("Error saving event: %s", err)
+			log.Printf("Error saving event: %s", err)
 			session.Close()
 			break
 		}
@@ -134,13 +134,13 @@ func (this *NsqToMongo) EventMessageRouter(m *nsq.Message) error {
 
 	err := json.Unmarshal(m.Body[:], &tmpEvent)
 	if err != nil {
-		glog.Errorln("Error when convert nsq msg body into Event obj")
+		log.Println("Error when convert nsq msg body into Event obj")
 		return err
 	}
 	tmpEvent.Id = bson.NewObjectId()
 	bsonEvent, err2 := models.EventToBsonEvent(tmpEvent)
 	if err2 != nil {
-		glog.Errorln("Error when convert event obj into bson obj")
+		log.Println("Error when convert event obj into bson obj")
 		return err2
 	}
 	bsonEventChan <- *bsonEvent
@@ -172,7 +172,7 @@ func (this *NsqToMongo) EventMessageRouter(m *nsq.Message) error {
 // 	err = this.table.Insert(out)
 // 	//db.Insert(&this)
 // 	if err != nil {
-// 		glog.Errorf("Error saving event: %s", err)
+// 		log.Printf("Error saving event: %s", err)
 // 		//this.ConnectToMongo()
 // 		//err = this.table.Insert(out)
 // 		//return err

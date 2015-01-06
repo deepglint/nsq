@@ -1,17 +1,13 @@
-#Set the base image to use to Ubuntu
-FROM 192.168.1.72:5000/ubuntu:trusty
-
-#Set the file maintainer (your name- the file's author)
+FROM 115.28.62.181:5000/ubuntu:trusty
 
 MAINTAINER Yan Huang
 
+RUN mkdir -p /nsq2mongo
 
-#Add files to the image
+ADD nsq2mongo.linux /nsq2mongo/nsq2mongo.linux
 
-RUN mkdir -p root/nsqtomongo
+RUN chmod +x /nsq2mongo/nsq2mongo.linux
 
-ADD nsq_to_mongo root/nsqtomongo/nsq_to_mongo
+WORKDIR /nsq2mongo
 
-RUN chmod +x root/nsqtomongo/nsq_to_mongo
-
-WORKDIR root/nsqtomongo
+CMD ./nsq2mongo.linux
