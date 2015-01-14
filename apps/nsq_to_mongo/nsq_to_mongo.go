@@ -9,7 +9,7 @@ import (
 	// "github.com/deepglint/glog"
 	"github.com/deepglint/go-nsq"
 	"labix.org/v2/mgo"
-	"labix.org/v2/mgo/bson"
+	//"labix.org/v2/mgo/bson"
 	"log"
 	"os"
 	"os/signal"
@@ -240,7 +240,7 @@ func (this *NsqToMongo) EventMessageRouter(m *nsq.Message) error {
 		log.Println("Error when convert nsq msg body into Event obj")
 		return err
 	}
-	tmpEvent.Id = bson.NewObjectId()
+	//tmpEvent.Id = bson.NewObjectId()
 	bsonEvent, err2 := models.EventToBsonEvent(tmpEvent)
 	if err2 != nil {
 		log.Println("Error when convert event obj into bson obj")
