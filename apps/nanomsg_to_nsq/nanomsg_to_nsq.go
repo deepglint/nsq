@@ -30,6 +30,8 @@ var backupLink *nsq.Consumer
 var blockedNum = 0
 var stoped = true
 
+var demoEvent = "{\"AlarmLevel\":0,\"EventType\":223,\"EventTypeProbability\":0.0,\"HotspotId\":\"DG.BLADE.H1\",\"Path\":[-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497],\"PeopleId\":\"e8118ad24d2e4828923dfc29099ad0a4\",\"PicBinary\":\"../io/tmp_event/266450724971_1600.jpg\",\"PlanetId\":\"DG\",\"SceneId\":\"DG.BLADE\",\"SensorId\":\"DG.BLADE.S12\",\"StartTime\":1421295756851,\"TimeLength\":533}"
+
 type MemMsg struct {
 	body []byte
 }
@@ -74,6 +76,7 @@ func main() {
 	}
 	go nanoReceiver()
 	go sender()
+	go tester()
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	for {
@@ -96,6 +99,16 @@ func nanoReceiver() {
 		newMsg.body = tmpbuf
 		memBuffer <- *newMsg
 		println("push into membuffer")
+	}
+}
+
+func tester() {
+	for {
+		newMsg := new(MemMsg)
+		newMsg.body = []byte(demoEvent)
+		memBuffer <- *newMsg
+		println("push into membuffer")
+		time.Sleep(time.Second * 1)
 	}
 }
 
