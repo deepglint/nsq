@@ -77,7 +77,7 @@ func main() {
 	}
 	go nanoReceiver()
 	go sender()
-	go tester()
+	//go tester()
 	go switcher()
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
