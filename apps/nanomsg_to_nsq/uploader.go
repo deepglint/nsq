@@ -77,7 +77,7 @@ func main() {
 	}
 	go nanoReceiver()
 	go sender()
-	//go tester()
+	go tester()
 	go switcher()
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -99,9 +99,10 @@ func nanoReceiver() {
 		}
 		newMsg := new(MemMsg)
 		newMsg.body = tmpbuf
-		newMsg.timestamp = time.Now().Unix()
+		newMsg.timestamp = time.Now().UnixNano()
 		memBuffer <- *newMsg
 		println("push into membuffer")
+		log.Println("comes the message :\n%s\nwith time :%d", string(tmpbuf), newMsg.timestamp)
 	}
 }
 
@@ -144,7 +145,7 @@ func switcher() {
 func sender() {
 	for {
 		msg := <-memBuffer
-		t := time.Now().Unix()
+		t := time.Now().UnixNano()
 
 		err := producer.Publish(*topic, msg.body)
 		if err != nil {
