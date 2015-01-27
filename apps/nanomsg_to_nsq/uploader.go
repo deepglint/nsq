@@ -33,7 +33,8 @@ var stoped = true
 var demoEvent = "{\"AlarmLevel\":0,\"EventType\":223,\"EventTypeProbability\":0.0,\"HotspotId\":\"DG.BLADE.H1\",\"Path\":[-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497,-372,7035,1497],\"PeopleId\":\"e8118ad24d2e4828923dfc29099ad0a4\",\"PicBinary\":\"../io/tmp_event/266450724971_1600.jpg\",\"PlanetId\":\"DG\",\"SceneId\":\"DG.BLADE\",\"SensorId\":\"DG.BLADE.S12\",\"StartTime\":1421295756851,\"TimeLength\":533}"
 
 type MemMsg struct {
-	body []byte
+	body      []byte
+	timestamp int64
 }
 
 var memBuffer chan MemMsg
@@ -98,6 +99,7 @@ func nanoReceiver() {
 		}
 		newMsg := new(MemMsg)
 		newMsg.body = tmpbuf
+		newMsg.timestamp = time.Now().Unix()
 		memBuffer <- *newMsg
 		println("push into membuffer")
 	}
@@ -142,6 +144,8 @@ func switcher() {
 func sender() {
 	for {
 		msg := <-memBuffer
+		t := time.Now().Unix()
+
 		err := producer.Publish(*topic, msg.body)
 		if err != nil {
 			log.Println("Need to send local nsq here or save on disc")
@@ -150,5 +154,6 @@ func sender() {
 			continue
 		}
 		blockedNum = 0
+		log.Println("the latency of msg is :%d\n", t-msg.timestamp)
 	}
 }
