@@ -31,11 +31,15 @@ var (
 	user       = flag.String("user", "libra", "user name for mongo db")
 	password   = flag.String("password", "deepdbdb", "password for mongo db")
 )
-var bsonEventChan chan models.BsonEvent
-var bsonEventChan2 chan models.BsonEvent
-var bsonEventChan3 chan models.BsonEvent
-var bsonEventChan4 chan models.BsonEvent
-var bsonEventChan5 chan models.BsonEvent
+
+const (
+	concurrentChanNumber = 5
+)
+
+var (
+	bsonEventChans []chan models.BsonEvent
+	total          = 0
+)
 
 type NsqToMongo struct {
 	topic      string
@@ -52,8 +56,6 @@ type NsqToMongo struct {
 	db         *mgo.Database
 	consumer   *nsq.Consumer
 }
-
-var total = 0
 
 // type BsonEvent struct {
 // 	Id        bson.ObjectId       "_id" //`json:"_id,omitempty"` //auto generate, don't fill it
@@ -76,7 +78,7 @@ func (this *NsqToMongo) ConnectToNsq() error {
 		return err
 	}
 
-	consumer.AddHandler(nsq.HandlerFunc(this.EventMessageRouter))
+	consumer.AddHandler(nsq.HandlerFunc(this.TimeSeriesDataMessageRouter))
 
 	err = consumer.ConnectToNSQD(this.nsq_addr)
 	if err != nil {
@@ -86,6 +88,7 @@ func (this *NsqToMongo) ConnectToNsq() error {
 	this.consumer = consumer
 	return nil
 }
+
 func (this *NsqToMongo) ConnectToMongo() error {
 
 	mongo_addr := this.mongo_addr
@@ -112,7 +115,7 @@ func (this *NsqToMongo) ConnectToMongo() error {
 	return nil
 }
 
-func (this *NsqToMongo) EventMessageHandler() {
+func (this *NsqToMongo) EventMessageHandler(c chan models.BsonEvent) {
 	session := this.session.Copy()
 	db := session.DB(this.database)
 	err := db.Login(this.user, this.password)
@@ -123,96 +126,7 @@ func (this *NsqToMongo) EventMessageHandler() {
 	table := db.C(this.collection)
 	//var newBsonEvent models.BsonEvent
 	for {
-		newBsonEvent := <-bsonEventChan
-		log.Println("Got the bsonEvent obj:%v", newBsonEvent)
-		err := table.Insert(newBsonEvent)
-		if err != nil {
-			log.Printf("Error saving event: %s", err)
-			session.Close()
-			break
-		}
-		log.Println("Saved Successful")
-	}
-}
-
-func (this *NsqToMongo) EventMessageHandler2() {
-	session := this.session.Copy()
-	db := session.DB(this.database)
-	err := db.Login(this.user, this.password)
-	if err != nil {
-		log.Printf("MongoDB Login Error: %v", err)
-		this.Close()
-	}
-	table := db.C(this.collection)
-	//var newBsonEvent models.BsonEvent
-	for {
-		newBsonEvent := <-bsonEventChan2
-		log.Println("Got the bsonEvent obj:%v", newBsonEvent)
-		err := table.Insert(newBsonEvent)
-		if err != nil {
-			log.Printf("Error saving event: %s", err)
-			session.Close()
-			break
-		}
-		log.Println("Saved Successful")
-	}
-}
-func (this *NsqToMongo) EventMessageHandler3() {
-	session := this.session.Copy()
-	db := session.DB(this.database)
-	err := db.Login(this.user, this.password)
-	if err != nil {
-		log.Printf("MongoDB Login Error: %v", err)
-		this.Close()
-	}
-	table := db.C(this.collection)
-	//var newBsonEvent models.BsonEvent
-	for {
-		newBsonEvent := <-bsonEventChan3
-		log.Println("Got the bsonEvent obj:%v", newBsonEvent)
-		err := table.Insert(newBsonEvent)
-		if err != nil {
-			log.Printf("Error saving event: %s", err)
-			session.Close()
-			break
-		}
-		log.Println("Saved Successful")
-	}
-}
-func (this *NsqToMongo) EventMessageHandler4() {
-	session := this.session.Copy()
-	db := session.DB(this.database)
-	err := db.Login(this.user, this.password)
-	if err != nil {
-		log.Printf("MongoDB Login Error: %v", err)
-		this.Close()
-	}
-	table := db.C(this.collection)
-	//var newBsonEvent models.BsonEvent
-	for {
-		newBsonEvent := <-bsonEventChan4
-		log.Println("Got the bsonEvent obj:%v", newBsonEvent)
-		err := table.Insert(newBsonEvent)
-		if err != nil {
-			log.Printf("Error saving event: %s", err)
-			session.Close()
-			break
-		}
-		log.Println("Saved Successful")
-	}
-}
-func (this *NsqToMongo) EventMessageHandler5() {
-	session := this.session.Copy()
-	db := session.DB(this.database)
-	err := db.Login(this.user, this.password)
-	if err != nil {
-		log.Printf("MongoDB Login Error: %v", err)
-		this.Close()
-	}
-	table := db.C(this.collection)
-	//var newBsonEvent models.BsonEvent
-	for {
-		newBsonEvent := <-bsonEventChan5
+		newBsonEvent := <-c
 		log.Println("Got the bsonEvent obj:%v", newBsonEvent)
 		err := table.Insert(newBsonEvent)
 		if err != nil {
@@ -247,22 +161,32 @@ func (this *NsqToMongo) EventMessageRouter(m *nsq.Message) error {
 		return err2
 	}
 	total++
-	total = total % 5
-	if total == 0 {
-		bsonEventChan <- *bsonEvent
+	bsonEventChans[total%concurrentChanNumber] <- *bsonEvent
+	return nil
+}
+
+func (this *NsqToMongo) TimeSeriesDataMessageRouter(m *nsq.Message) error {
+	var ts = make(models.TimeSeriesJson)
+
+	err := json.Unmarshal(m.Body[:], &ts)
+	if err != nil {
+		return err
 	}
-	if total == 1 {
-		bsonEventChan2 <- *bsonEvent
+	k := ts.GetId()
+	log.Println("The Id is %s", k)
+	if k == "" {
+		return nil
 	}
-	if total == 2 {
-		bsonEventChan3 <- *bsonEvent
+	log.Printf("Received message:%v", string(m.Body))
+
+	bsonEvent, err := models.TimeSeriesDataToBsonEvent(&ts)
+	if err != nil {
+		log.Println("Error when converting TimeSeriesData to BsonEvent")
+		return err
 	}
-	if total == 3 {
-		bsonEventChan4 <- *bsonEvent
-	}
-	if total == 4 {
-		bsonEventChan5 <- *bsonEvent
-	}
+	total++
+	bsonEventChans[total%concurrentChanNumber] <- *bsonEvent
+
 	return nil
 }
 
@@ -307,11 +231,11 @@ func (this *NsqToMongo) Close() error {
 }
 
 func main() {
-	bsonEventChan = make(chan models.BsonEvent)
-	bsonEventChan2 = make(chan models.BsonEvent)
-	bsonEventChan3 = make(chan models.BsonEvent)
-	bsonEventChan4 = make(chan models.BsonEvent)
-	bsonEventChan5 = make(chan models.BsonEvent)
+	bsonEventChans = make([]chan models.BsonEvent, concurrentChanNumber)
+	for i := 0; i < concurrentChanNumber; i++ {
+		bsonEventChans[i] = make(chan models.BsonEvent)
+	}
+
 	flag.Parse()
 	// /// to check if the params valid
 	if *topic == "" {
@@ -354,11 +278,9 @@ func main() {
 
 	_ = nsqtomongo.ConnectToNsq()
 
-	go nsqtomongo.EventMessageHandler()
-	go nsqtomongo.EventMessageHandler2()
-	go nsqtomongo.EventMessageHandler3()
-	go nsqtomongo.EventMessageHandler4()
-	go nsqtomongo.EventMessageHandler5()
+	for _, c := range bsonEventChans {
+		go nsqtomongo.EventMessageHandler(c)
+	}
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
