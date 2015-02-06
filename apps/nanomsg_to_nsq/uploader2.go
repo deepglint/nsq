@@ -16,7 +16,6 @@ var (
 	nanomsgDomain = flag.String("domain", "ipc:///tmp/default.ipc", "nanomsg domain")
 	nsqdaddr      = flag.String("nsqdaddr", "", "nsqd tcp address")
 	topic         = flag.String("topic", "", "topic of nsqd to push msg")
-
 	innernsqdaddr = flag.String("innernsqdaddr", "localhost:4150", "the inner nsqd address for message backup")
 )
 var pCfg = nsq.NewConfig()
