@@ -67,6 +67,10 @@ func NewTopic(topicName string, ctx *context, deleteCallback func(*Topic)) *Topi
 	return t
 }
 
+func (t *Topic) topicParser(topicstr string) {
+	///do somthing for topic inition
+}
+
 // Exiting returns a boolean indicating if this topic is closed/exiting
 func (t *Topic) Exiting() bool {
 	return atomic.LoadInt32(&t.exitFlag) == 1

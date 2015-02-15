@@ -99,7 +99,7 @@ func NewChannel(topicName string, channelName string, ctx *context,
 
 	c.initPQ()
 
-	if strings.HasSuffix(channelName, "#ephemeral") {
+	if strings.HasSuffix(channelName, "#ephemeral") || strings.HasSuffix(channelName, "#live") {
 		c.ephemeral = true
 		c.backend = newDummyBackendQueue()
 	} else {
@@ -121,6 +121,10 @@ func NewChannel(topicName string, channelName string, ctx *context,
 	c.ctx.nsqd.Notify(c)
 
 	return c
+}
+
+func (c *Channel) channelParser(channelstr string) {
+	///do something for channel inition
 }
 
 func (c *Channel) initPQ() {
