@@ -208,6 +208,9 @@ func (s *httpServer) getExistingTopicFromQuery(req *http.Request) (*util.ReqPara
 
 func (s *httpServer) getTopicFromQuery(req *http.Request) (url.Values, *Topic, error) {
 	reqParams, err := url.ParseQuery(req.URL.RawQuery)
+	fmt.Println(req.URL.RawQuery)
+	fmt.Println(req.URL.RequestURI())
+
 	if err != nil {
 		s.ctx.nsqd.logf("ERROR: failed to parse request params - %s", err)
 		return nil, nil, util.HTTPError{400, "INVALID_REQUEST"}
@@ -215,6 +218,8 @@ func (s *httpServer) getTopicFromQuery(req *http.Request) (url.Values, *Topic, e
 
 	topicNames, ok := reqParams["topic"]
 	if !ok {
+		fmt.Println("here4")
+
 		return nil, nil, util.HTTPError{400, "MISSING_ARG_TOPIC"}
 	}
 	topicName := topicNames[0]
@@ -347,6 +352,7 @@ func (s *httpServer) doEmptyTopic(req *http.Request) (interface{}, error) {
 
 	topicName, err := reqParams.Get("topic")
 	if err != nil {
+		fmt.Println("here1")
 		return nil, util.HTTPError{400, "MISSING_ARG_TOPIC"}
 	}
 
@@ -376,6 +382,8 @@ func (s *httpServer) doDeleteTopic(req *http.Request) (interface{}, error) {
 
 	topicName, err := reqParams.Get("topic")
 	if err != nil {
+		fmt.Println("here2")
+
 		return nil, util.HTTPError{400, "MISSING_ARG_TOPIC"}
 	}
 
@@ -396,6 +404,8 @@ func (s *httpServer) doPauseTopic(req *http.Request) (interface{}, error) {
 
 	topicName, err := reqParams.Get("topic")
 	if err != nil {
+		fmt.Println("here3")
+
 		return nil, util.HTTPError{400, "MISSING_ARG_TOPIC"}
 	}
 

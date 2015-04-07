@@ -2,6 +2,7 @@ package util
 
 import (
 	"errors"
+	"fmt"
 )
 
 type Getter interface {
@@ -11,6 +12,8 @@ type Getter interface {
 func GetTopicChannelArgs(rp Getter) (string, string, error) {
 	topicName, err := rp.Get("topic")
 	if err != nil {
+		fmt.Println("here5")
+
 		return "", "", errors.New("MISSING_ARG_TOPIC")
 	}
 

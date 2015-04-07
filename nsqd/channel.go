@@ -5,7 +5,7 @@ import (
 	"container/heap"
 	"errors"
 	"math"
-	"strings"
+	// "strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -99,19 +99,22 @@ func NewChannel(topicName string, channelName string, ctx *context,
 
 	c.initPQ()
 
-	if strings.HasSuffix(channelName, "#ephemeral") {
-		c.ephemeral = true
-		c.backend = newDummyBackendQueue()
-	} else {
-		// backend names, for uniqueness, automatically include the topic...
-		backendName := getBackendName(topicName, channelName)
-		c.backend = newDiskQueue(backendName,
-			ctx.nsqd.opts.DataPath,
-			ctx.nsqd.opts.MaxBytesPerFile,
-			ctx.nsqd.opts.SyncEvery,
-			ctx.nsqd.opts.SyncTimeout,
-			ctx.nsqd.opts.Logger)
-	}
+	// if strings.HasSuffix(channelName, "#ephemeral") {
+	// 	c.ephemeral = true
+	// 	c.backend = newDummyBackendQueue()
+	// } else {
+	// 	// backend names, for uniqueness, automatically include the topic...
+	// 	backendName := getBackendName(topicName, channelName)
+	// 	c.backend = newDiskQueue(backendName,
+	// 		ctx.nsqd.opts.DataPath,
+	// 		ctx.nsqd.opts.MaxBytesPerFile,
+	// 		ctx.nsqd.opts.SyncEvery,
+	// 		ctx.nsqd.opts.SyncTimeout,
+	// 		ctx.nsqd.opts.Logger)
+	// }
+
+	c.ephemeral = true
+	c.backend = newDummyBackendQueue()
 
 	go c.messagePump()
 
@@ -314,7 +317,7 @@ func (c *Channel) PutMessage(m *Message) error {
 	if atomic.LoadInt32(&c.exitFlag) == 1 {
 		return errors.New("exiting")
 	}
-	err := c.put(m)
+	err := c.put2(m)
 	if err != nil {
 		return err
 	}
@@ -336,6 +339,17 @@ func (c *Channel) put(m *Message) error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (c *Channel) put2(m *Message) error {
+	depth := len(c.memoryMsgChan)
+	if int64(depth) == c.ctx.nsqd.opts.MemQueueSize {
+		c.ctx.nsqd.logf("The Topic channel is full")
+		<-c.memoryMsgChan
+	}
+	c.memoryMsgChan <- m
+
 	return nil
 }
 
@@ -457,7 +471,7 @@ func (c *Channel) doRequeue(m *Message) error {
 	if atomic.LoadInt32(&c.exitFlag) == 1 {
 		return errors.New("exiting")
 	}
-	err := c.put(m)
+	err := c.put2(m)
 	if err != nil {
 		return err
 	}

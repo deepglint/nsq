@@ -467,6 +467,7 @@ func (s *httpServer) tombstoneTopicProducerHandler(w http.ResponseWriter, req *h
 
 	topicName, err := reqParams.Get("topic")
 	if err != nil {
+		fmt.Println("here6")
 		http.Error(w, "MISSING_ARG_TOPIC", 500)
 		return
 	}
@@ -538,6 +539,7 @@ func (s *httpServer) deleteTopicHandler(w http.ResponseWriter, req *http.Request
 
 	topicName, err := reqParams.Get("topic")
 	if err != nil {
+		fmt.Println("here7")
 		http.Error(w, "MISSING_ARG_TOPIC", 500)
 		return
 	}
@@ -649,6 +651,7 @@ func (s *httpServer) emptyTopicHandler(w http.ResponseWriter, req *http.Request)
 
 	topicName, err := reqParams.Get("topic")
 	if err != nil {
+		fmt.Println("here8")
 		http.Error(w, "MISSING_ARG_TOPIC", 500)
 		return
 	}
@@ -677,6 +680,7 @@ func (s *httpServer) pauseTopicHandler(w http.ResponseWriter, req *http.Request)
 
 	topicName, err := reqParams.Get("topic")
 	if err != nil {
+		fmt.Println("here9")
 		http.Error(w, "MISSING_ARG_TOPIC", 500)
 		return
 	}

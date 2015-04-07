@@ -155,6 +155,7 @@ func (s *httpServer) doChannels(req *http.Request) (interface{}, error) {
 
 	topicName, err := reqParams.Get("topic")
 	if err != nil {
+		fmt.Println("here11")
 		return nil, util.HTTPError{400, "MISSING_ARG_TOPIC"}
 	}
 
@@ -172,6 +173,7 @@ func (s *httpServer) doLookup(req *http.Request) (interface{}, error) {
 
 	topicName, err := reqParams.Get("topic")
 	if err != nil {
+		fmt.Println("here12")
 		return nil, util.HTTPError{400, "MISSING_ARG_TOPIC"}
 	}
 
@@ -198,6 +200,7 @@ func (s *httpServer) doCreateTopic(req *http.Request) (interface{}, error) {
 
 	topicName, err := reqParams.Get("topic")
 	if err != nil {
+		fmt.Println("here13")
 		return nil, util.HTTPError{400, "MISSING_ARG_TOPIC"}
 	}
 
@@ -220,6 +223,7 @@ func (s *httpServer) doDeleteTopic(req *http.Request) (interface{}, error) {
 
 	topicName, err := reqParams.Get("topic")
 	if err != nil {
+		fmt.Println("here15")
 		return nil, util.HTTPError{400, "MISSING_ARG_TOPIC"}
 	}
 
@@ -246,6 +250,7 @@ func (s *httpServer) doTombstoneTopicProducer(req *http.Request) (interface{}, e
 
 	topicName, err := reqParams.Get("topic")
 	if err != nil {
+		fmt.Println("here16")
 		return nil, util.HTTPError{400, "MISSING_ARG_TOPIC"}
 	}
 

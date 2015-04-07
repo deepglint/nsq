@@ -3,7 +3,7 @@ package nsqd
 import (
 	"bytes"
 	"errors"
-	"strings"
+	// "strings"
 	"sync"
 	"sync/atomic"
 
@@ -48,17 +48,20 @@ func NewTopic(topicName string, ctx *context, deleteCallback func(*Topic)) *Topi
 		deleteCallback:    deleteCallback,
 	}
 
-	if strings.HasSuffix(topicName, "#ephemeral") {
-		t.ephemeral = true
-		t.backend = newDummyBackendQueue()
-	} else {
-		t.backend = newDiskQueue(topicName,
-			ctx.nsqd.opts.DataPath,
-			ctx.nsqd.opts.MaxBytesPerFile,
-			ctx.nsqd.opts.SyncEvery,
-			ctx.nsqd.opts.SyncTimeout,
-			ctx.nsqd.opts.Logger)
-	}
+	// if strings.HasSuffix(topicName, "#ephemeral") {
+	// 	t.ephemeral = true
+	// 	t.backend = newDummyBackendQueue()
+	// } else {
+	// 	t.backend = newDiskQueue(topicName,
+	// 		ctx.nsqd.opts.DataPath,
+	// 		ctx.nsqd.opts.MaxBytesPerFile,
+	// 		ctx.nsqd.opts.SyncEvery,
+	// 		ctx.nsqd.opts.SyncTimeout,
+	// 		ctx.nsqd.opts.Logger)
+	// }
+
+	t.ephemeral = true
+	t.backend = newDummyBackendQueue()
 
 	t.waitGroup.Wrap(func() { t.messagePump() })
 
@@ -201,7 +204,7 @@ func (t *Topic) put(m *Message) error {
 func (t *Topic) put2(m *Message) error {
 	depth := len(t.memoryMsgChan)
 	if int64(depth) == t.ctx.nsqd.opts.MemQueueSize {
-		lt.ctx.nsqd.logf("The Topic channel is full")
+		t.ctx.nsqd.logf("The Topic channel is full")
 		<-t.memoryMsgChan
 	}
 	t.memoryMsgChan <- m

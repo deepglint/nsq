@@ -1,5 +1,15 @@
 <p align="center"><img src="http://nsq.io/static/img/nsq.png"/></p>
 
+
+------------------
+In this branch ,the nsq has been changed into the circle memory queue for the living things.
+
+We use put2 function to put into the msg based on the circle principle:
+to throw the earliest msg when the queue is full
+
+This nsq-live don't have the ability to store data on disk
+
+------------------
  * **Source**: [https://github.com/bitly/nsq][github]
  * **Issues**: [https://github.com/bitly/nsq/issues][issues]
  * **Mailing List**: [nsq-users@googlegroups.com](https://groups.google.com/d/forum/nsq-users)

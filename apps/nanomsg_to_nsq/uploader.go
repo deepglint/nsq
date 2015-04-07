@@ -13,10 +13,9 @@ import (
 )
 
 var (
-	nanomsgDomain = flag.String("domain", "", "nanomsg domain")
+	nanomsgDomain = flag.String("domain", "ipc:///tmp/default.ipc", "nanomsg domain")
 	nsqdaddr      = flag.String("nsqdaddr", "", "nsqd tcp address")
 	topic         = flag.String("topic", "", "topic of nsqd to push msg")
-
 	innernsqdaddr = flag.String("innernsqdaddr", "localhost:4150", "the inner nsqd address for message backup")
 )
 var pCfg = nsq.NewConfig()
@@ -37,6 +36,40 @@ type MemMsg struct {
 	timestamp int64
 }
 
+type IpcSource struct {
+	addr   string
+	socket *nanomsg.PullSocket
+}
+
+func (this *IpcSource) NanoReceiver() {
+	for {
+		tmpbuf, err2 := this.socket.Recv(0)
+		if err2 != nil {
+			fmt.Println("error comes")
+			return
+		}
+		newMsg := new(MemMsg)
+		newMsg.body = tmpbuf
+		newMsg.timestamp = time.Now().UnixNano()
+		memBuffer <- *newMsg
+		println("push into membuffer from socket:%s", this.addr)
+		//log.Println("comes the message :\n%s\nwith time :%d", string(tmpbuf), newMsg.timestamp)
+	}
+}
+
+func NewIPCSource(addr string) (*IpcSource, error) {
+	var ipc = new(IpcSource)
+	ipc.addr = addr
+	ipc.socket, err = nanomsg.NewPullSocket()
+	if err != nil {
+		log.Println(err)
+		return nil, err
+	}
+	ipc.socket.Bind(addr)
+	log.Println("Finishing initializing ipc source:%s", addr)
+	return ipc, nil
+}
+
 var memBuffer chan MemMsg
 
 func main() {
@@ -46,12 +79,44 @@ func main() {
 		log.Println("the params need not to be null")
 		return
 	}
-	socket, err = nanomsg.NewPullSocket()
+	///////
+	// socket, err = nanomsg.NewPullSocket()
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	return
+	// }
+	// socket.Bind(*nanomsgDomain)
+
+	///////
+	var ipc1, ipc2, ipc3, ipc4, ipc5, ipc6, ipc7 *IpcSource
+	ipc1, err = NewIPCSource("ipc:///tmp/libra_single_money.ipc")
 	if err != nil {
-		fmt.Println(err)
-		return
+		log.Println("Fail to init IPC")
 	}
-	socket.Bind(*nanomsgDomain)
+	ipc2, err = NewIPCSource("ipc:///tmp/libra_cutboard.ipc")
+	if err != nil {
+		log.Println("Fail to init IPC")
+	}
+	ipc3, err = NewIPCSource("ipc:///tmp/libra_fall.ipc")
+	if err != nil {
+		log.Println("Fail to init IPC")
+	}
+	ipc4, err = NewIPCSource("ipc:///tmp/libra_violence.ipc")
+	if err != nil {
+		log.Println("Fail to init IPC")
+	}
+	ipc5, err = NewIPCSource("ipc:///tmp/libra_latch.ipc")
+	if err != nil {
+		log.Println("Fail to init IPC")
+	}
+	ipc6, err = NewIPCSource("ipc:///tmp/libra_lens_protection.ipc")
+	if err != nil {
+		log.Println("Fail to init IPC")
+	}
+	ipc7, err = NewIPCSource("ipc:///tmp/libra_sos.ipc")
+	if err != nil {
+		log.Println("Fail to init IPC")
+	}
 	producer, err = nsq.NewProducer(*nsqdaddr, pCfg)
 	if err != nil {
 		log.Fatalf("failed creating remote producer %s", err)
@@ -75,7 +140,13 @@ func main() {
 		log.Println("Error connecting to local nsq")
 		//return err
 	}
-	go nanoReceiver()
+	go ipc1.NanoReceiver()
+	go ipc2.NanoReceiver()
+	go ipc3.NanoReceiver()
+	go ipc4.NanoReceiver()
+	go ipc5.NanoReceiver()
+	go ipc6.NanoReceiver()
+	go ipc7.NanoReceiver()
 	go sender()
 	//go tester()
 	go switcher()

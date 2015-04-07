@@ -90,6 +90,7 @@ func main() {
 	}
 
 	cfg := nsq.NewConfig()
+
 	cfg.UserAgent = fmt.Sprintf("nsq_tail/%s go-nsq/%s", util.BINARY_VERSION, nsq.VERSION)
 	err := util.ParseOpts(cfg, consumerOpts)
 	if err != nil {
