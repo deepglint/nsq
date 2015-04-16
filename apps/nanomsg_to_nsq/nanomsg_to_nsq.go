@@ -19,7 +19,7 @@ var producer *nsq.Producer
 
 func main() {
 	flag.Parse()
-	if *nanomsgDomain == "" && *nsqdaddr == "" && *topic == "" {
+	if *nanomsgDomain == "" && *busaddr == "" && *topic == "" {
 		log.Println("the params need not to be null")
 		return
 	}
@@ -29,7 +29,7 @@ func main() {
 		return
 	}
 	socket.Bind(*nanomsgDomain)
-	producer, err = nsq.NewProducer(*nsqdaddr, pCfg)
+	producer, err = bus.NewProducer(*busaddr, pCfg)
 	if err != nil {
 		log.Fatalf("failed creating producer %s", err)
 	}

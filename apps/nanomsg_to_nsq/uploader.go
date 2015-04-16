@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/deepglint/go-nsq"
+	"github.com/bitly/go-nsq"
 	"github.com/op/go-nanomsg"
 	"log"
 	"os"
