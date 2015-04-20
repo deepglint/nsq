@@ -1,0 +1,15 @@
+{
+	"route":[
+		{
+			"nsqd":"localhost:4150",
+			"topic":"hello",
+			"channel":"world",
+			"post":["http://deepglint.com:4151/pub?topic=hello","http://localhost:4151/pub?topic=world"],
+			"mode":"round-robin",//or multicast hostpoll
+			"maxInFlignt":200,
+			"processerNum":100,//thie coninstence number of processers
+			"httpTimeout":20,//
+			"contentType":"application/octet-stream"
+		}
+	]
+}
