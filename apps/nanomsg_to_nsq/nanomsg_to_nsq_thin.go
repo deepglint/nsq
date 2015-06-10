@@ -70,7 +70,7 @@ func main() {
 	flag.Parse()
 	memBuffer = make(chan MemMsg)
 
-	var ipc1, ipc2, ipc3, ipc4, ipc5, ipc6, ipc7 *IpcSource
+	var ipc1, ipc2, ipc3, ipc4, ipc5, ipc6, ipc7, ipc8 *IpcSource
 	ipc1, err = NewIPCSource("ipc:///tmp/libra_single_money.ipc")
 	if err != nil {
 		log.Println("Fail to init IPC")
@@ -99,6 +99,10 @@ func main() {
 	if err != nil {
 		log.Println("Fail to init IPC")
 	}
+	ipc8, err = NewIPCSource("ipc:///tmp/libra_imu.ipc")
+	if err != nil {
+		log.Println("Fail to init IPC")
+	}
 
 	innerProducer, err = nsq.NewProducer(*innernsqdaddr, pCfg)
 	if err != nil {
@@ -116,6 +120,7 @@ func main() {
 	go ipc5.NanoReceiver()
 	go ipc6.NanoReceiver()
 	go ipc7.NanoReceiver()
+	go ipc8.NanoReceiver()
 	go sender()
 
 	sigChan := make(chan os.Signal, 1)
