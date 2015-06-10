@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
+	"github.com/deepglint/go-nsq"
 	"os"
 	"os/signal"
 	"syscall"
-
-	"github.com/bitly/go-nsq"
+	"time"
 	//"github.com/bitly/nsq/util"
 )
 
@@ -29,12 +29,16 @@ func main() {
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	err = consumer.ConnectToNSQD("localhost:4150")
-	if err != nil {
-		fmt.Println("Error connecting")
+	for {
+		err = consumer.ConnectToNSQD("localhost:4150")
+		if err != nil {
+			fmt.Println("Error connecting,reconnecting in 15s")
+			time.Sleep(time.Second * 15)
+			continue
+		} else {
+			break
+		}
 	}
-
 	for {
 		select {
 		case <-consumer.StopChan:

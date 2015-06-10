@@ -1,0 +1,11 @@
+loading test...
+
+
+ok  github.com/deepglint/bus                         0.012s  coverage: 4.5% of statements
+ok  github.com/deepglint/bus/worker/topic            0.013s  coverage: 100.0% of statements
+ok  github.com/deepglint/bus/worker/channel          0.014s  coverage: 89.7% of statements
+ok  github.com/deepglint/bus/worker/discqueue        0.012s  coverage: 90.5% of statements
+ok  github.com/deepglint/bus/statsd                  0.019s  coverage: 77.3% of statements
+ok  github.com/deepglint/bus/auth                    0.012s  coverage: 100.0% of statements
+ok  github.com/deepglint/bus/hq                      0.016s  coverage: 95.2% of statements
+
