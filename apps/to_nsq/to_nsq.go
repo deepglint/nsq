@@ -13,9 +13,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/bitly/go-nsq"
-	"github.com/bitly/nsq/internal/app"
-	"github.com/bitly/nsq/internal/version"
+	"github.com/deepglint/go-nsq"
+	"github.com/deepglint/nsq/internal/app"
+	"github.com/deepglint/nsq/internal/version"
 )
 
 var (
@@ -27,7 +27,7 @@ var (
 )
 
 func init() {
-	flag.Var(&producerOpts, "producer-opt", "option to passthrough to nsq.Producer (may be given multiple times, http://godoc.org/github.com/bitly/go-nsq#Config)")
+	flag.Var(&producerOpts, "producer-opt", "option to passthrough to nsq.Producer (may be given multiple times, http://godoc.org/github.com/deepglint/go-nsq#Config)")
 	flag.Var(&destNsqdTCPAddrs, "nsqd-tcp-address", "destination nsqd TCP address (may be given multiple times)")
 }
 

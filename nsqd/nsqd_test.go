@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/bitly/go-simplejson"
-	"github.com/bitly/nsq/internal/http_api"
-	"github.com/bitly/nsq/nsqlookupd"
+	"github.com/deepglint/nsq/internal/http_api"
+	"github.com/deepglint/nsq/nsqlookupd"
 )
 
 func assert(t *testing.T, condition bool, msg string, v ...interface{}) {
@@ -234,6 +234,233 @@ func TestEphemeralTopicsAndChannels(t *testing.T) {
 	numTopics := len(nsqd.topicMap)
 	nsqd.Unlock()
 	equal(t, numTopics, 0)
+
+	exitChan <- 1
+	<-doneExitChan
+}
+
+func TestOnceTopicsAndChannels(t *testing.T) {
+	// once or ephemeral topics/channels are lazily removed after the last channel/client is removed
+	opts := NewOptions()
+	opts.Logger = newTestLogger(t)
+	opts.MemQueueSize = 100
+	_, _, nsqd := mustStartNSQD(opts)
+	defer os.RemoveAll(opts.DataPath)
+
+	topicName := "once_topic" + strconv.Itoa(int(time.Now().Unix())) + "#once"
+	doneExitChan := make(chan int)
+
+	exitChan := make(chan int)
+	go func() {
+		<-exitChan
+		nsqd.Exit()
+		doneExitChan <- 1
+	}()
+
+	body := []byte("an_once_message")
+	topic := nsqd.GetTopic(topicName)
+	ephemeralChannel := topic.GetChannel("ch1#once")
+	client := newClientV2(0, nil, &context{nsqd})
+	ephemeralChannel.AddClient(client.ID, client)
+
+	msg := NewMessage(<-nsqd.idChan, body)
+	topic.PutMessage(msg)
+	msg = <-ephemeralChannel.clientMsgChan
+	equal(t, msg.Body, body)
+
+	ephemeralChannel.RemoveClient(client.ID)
+
+	time.Sleep(100 * time.Millisecond)
+
+	topic.Lock()
+	numChannels := len(topic.channelMap)
+	topic.Unlock()
+	equal(t, numChannels, 0)
+
+	nsqd.Lock()
+	numTopics := len(nsqd.topicMap)
+	nsqd.Unlock()
+	equal(t, numTopics, 0)
+
+	exitChan <- 1
+	<-doneExitChan
+}
+
+func TestMemSizeTopicsAndChannels(t *testing.T) {
+	// live or ephemeral topics/channels are lazily removed after the last channel/client is removed
+	opts := NewOptions()
+	opts.Logger = newTestLogger(t)
+	opts.MemQueueSize = 100
+	_, _, nsqd := mustStartNSQD(opts)
+	defer os.RemoveAll(opts.DataPath)
+
+	topicName := "MemSize_topic_t" + strconv.Itoa(int(time.Now().Unix())) + "#memsize@10"
+	doneExitChan := make(chan int)
+
+	exitChan := make(chan int)
+	go func() {
+		<-exitChan
+		nsqd.Exit()
+		doneExitChan <- 1
+	}()
+	body := []byte("an_live_message")
+	topic := nsqd.GetTopic(topicName)
+
+	ephemeralChannel := topic.GetChannel("ch1_t#memsize@5")
+
+	for i := 0; i < 102; i++ {
+		msg := NewMessage(<-nsqd.idChan, body)
+		topic.PutMessage(msg)
+	}
+
+	equal(t, len(topic.memoryMsgChan), 10)
+	equal(t, len(ephemeralChannel.memoryMsgChan), 5)
+
+	exitChan <- 1
+	<-doneExitChan
+}
+
+func TestCircleTopicsAndChannels(t *testing.T) {
+	// ephemeral topics/channels are lazily removed after the last channel/client is removed
+	opts := NewOptions()
+	opts.Logger = newTestLogger(t)
+	opts.MemQueueSize = 10
+	_, _, nsqd := mustStartNSQD(opts)
+	defer os.RemoveAll(opts.DataPath)
+
+	topicName := "ephemeral_topic" + strconv.Itoa(int(time.Now().Unix())) + "#nodisk#circle"
+	doneExitChan := make(chan int)
+
+	exitChan := make(chan int)
+	go func() {
+		<-exitChan
+		nsqd.Exit()
+		doneExitChan <- 1
+	}()
+
+	topic := nsqd.GetTopic(topicName)
+	ephemeralChannel := topic.GetChannel("ch1#nodisk#circle#memesize@2")
+	client := newClientV2(0, nil, &context{nsqd})
+	ephemeralChannel.AddClient(client.ID, client)
+
+	for i := 1; i <= 20; i++ {
+		body := []byte("an_ephemeral_message" + strconv.Itoa(i))
+		msg := NewMessage(<-nsqd.idChan, body)
+		topic.PutMessage(msg)
+	}
+	body0 := []byte("an_ephemeral_message" + strconv.Itoa(11))
+	msg := NewMessage(<-nsqd.idChan, body0)
+	msg = <-ephemeralChannel.clientMsgChan
+	equal(t, msg.Body, body0)
+
+	body1 := []byte("an_ephemeral_message" + strconv.Itoa(12))
+	msg = <-ephemeralChannel.clientMsgChan
+	equal(t, msg.Body, body1)
+
+	body2 := []byte("an_ephemeral_message" + strconv.Itoa(13))
+	msg = <-ephemeralChannel.clientMsgChan
+	equal(t, msg.Body, body2)
+
+	body3 := []byte("an_ephemeral_message" + strconv.Itoa(14))
+	msg = <-ephemeralChannel.clientMsgChan
+	equal(t, msg.Body, body3)
+
+	ephemeralChannel.RemoveClient(client.ID)
+
+	exitChan <- 1
+	<-doneExitChan
+}
+
+func TestTtlTopics(t *testing.T) {
+	// ephemeral topics/channels are lazily removed after the last channel/client is removed
+	opts := NewOptions()
+	opts.Logger = newTestLogger(t)
+	opts.MemQueueSize = 10
+	_, _, nsqd := mustStartNSQD(opts)
+	defer os.RemoveAll(opts.DataPath)
+
+	topicName := "ephemeral_topic" + strconv.Itoa(int(time.Now().Unix())) + "#ttl@500"
+	doneExitChan := make(chan int)
+
+	exitChan := make(chan int)
+	go func() {
+		<-exitChan
+		nsqd.Exit()
+		doneExitChan <- 1
+	}()
+
+	topic := nsqd.GetTopic(topicName)
+
+	body1 := []byte("an_ephemeral_message" + strconv.Itoa(1))
+	msg1 := NewMessage(<-nsqd.idChan, body1)
+	topic.PutMessage(msg1)
+
+	time.Sleep(600 * time.Millisecond)
+
+	body2 := []byte("an_ephemeral_message" + strconv.Itoa(2))
+	msg2 := NewMessage(<-nsqd.idChan, body2)
+	topic.PutMessage(msg2)
+
+	ephemeralChannel := topic.GetChannel("ch1_ttl")
+	client := newClientV2(0, nil, &context{nsqd})
+	ephemeralChannel.AddClient(client.ID, client)
+
+	body11 := []byte("an_ephemeral_message" + strconv.Itoa(2))
+	msg11 := NewMessage(<-nsqd.idChan, body11)
+	msg11 = <-ephemeralChannel.clientMsgChan
+	equal(t, msg11.Body, body11)
+
+	ephemeralChannel.RemoveClient(client.ID)
+
+	exitChan <- 1
+	<-doneExitChan
+}
+
+func TestTtlChannel(t *testing.T) {
+	// ephemeral topics/channels are lazily removed after the last channel/client is removed
+	opts := NewOptions()
+	opts.Logger = newTestLogger(t)
+	opts.MemQueueSize = 10
+	_, _, nsqd := mustStartNSQD(opts)
+	defer os.RemoveAll(opts.DataPath)
+
+	topicName := "ephemeral_topic_c" + strconv.Itoa(int(time.Now().Unix()))
+	doneExitChan := make(chan int)
+
+	exitChan := make(chan int)
+	go func() {
+		<-exitChan
+		nsqd.Exit()
+		doneExitChan <- 1
+	}()
+
+	topic := nsqd.GetTopic(topicName)
+
+	body1 := []byte("an_ephemeral_message" + strconv.Itoa(1))
+	msg1 := NewMessage(<-nsqd.idChan, body1)
+	topic.PutMessage(msg1)
+
+	body2 := []byte("an_ephemeral_message" + strconv.Itoa(2))
+	msg2 := NewMessage(<-nsqd.idChan, body2)
+	topic.PutMessage(msg2)
+
+	ephemeralChannel := topic.GetChannel("ch1_c_ttl" + "#ttl@500")
+	client := newClientV2(0, nil, &context{nsqd})
+	ephemeralChannel.AddClient(client.ID, client)
+
+	time.Sleep(600 * time.Millisecond)
+	body3 := []byte("an_ephemeral_message" + strconv.Itoa(3))
+	msg3 := NewMessage(<-nsqd.idChan, body3)
+	topic.PutMessage(msg3)
+
+	<-ephemeralChannel.clientMsgChan
+
+	body11 := []byte("an_ephemeral_message" + strconv.Itoa(3))
+	msg11 := NewMessage(<-nsqd.idChan, body11)
+	msg11 = <-ephemeralChannel.clientMsgChan
+	equal(t, msg11.Body, body11)
+
+	ephemeralChannel.RemoveClient(client.ID)
 
 	exitChan <- 1
 	<-doneExitChan

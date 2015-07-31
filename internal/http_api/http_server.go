@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/bitly/nsq/internal/app"
+	"github.com/deepglint/nsq/internal/app"
 )
 
 func Serve(listener net.Listener, handler http.Handler, proto string, l app.Logger) {

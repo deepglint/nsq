@@ -1,13 +1,13 @@
 <p align="center"><img src="http://nsq.io/static/img/nsq.png"/></p>
 
- * **Source**: [https://github.com/bitly/nsq][github]
- * **Issues**: [https://github.com/bitly/nsq/issues][issues]
+ * **Source**: [https://github.com/deepglint/nsq][github]
+ * **Issues**: [https://github.com/deepglint/nsq/issues][issues]
  * **Mailing List**: [nsq-users@googlegroups.com](https://groups.google.com/d/forum/nsq-users)
  * **IRC**: #nsq on freenode
  * **Docs**: [http://nsq.io][docs]
  * **Twitter**: [@nsqio][nsqio_twitter]
 
-[![Build Status](https://secure.travis-ci.org/bitly/nsq.svg?branch=master)](http://travis-ci.org/bitly/nsq)
+[![Build Status](https://secure.travis-ci.org/deepglint/nsq.svg?branch=master)](http://travis-ci.org/deepglint/nsq)
 
 **NSQ** is a realtime distributed messaging platform designed to operate at scale, handling
 billions of messages per day.
@@ -30,7 +30,7 @@ NOTE: master is our *development* branch and may not be stable at all times.
 
 ## In Production
 
-<a href="http://bitly.com"><img src="http://nsq.io/static/img/bitly_logo.png" width="84" align="middle"/></a>&nbsp;&nbsp;
+<a href="http://deepglint.com"><img src="http://nsq.io/static/img/deepglint_logo.png" width="84" align="middle"/></a>&nbsp;&nbsp;
 <a href="http://life360.com"><img src="http://nsq.io/static/img/life360_logo.png" width="100" align="middle"/></a>&nbsp;&nbsp;
 <a href="http://hailocab.com"><img src="http://nsq.io/static/img/hailo_logo.png" width="62" align="middle"/></a>&nbsp;&nbsp;
 <a href="http://simplereach.com"><img src="http://nsq.io/static/img/simplereach_logo.png" width="136" align="middle"/></a>&nbsp;&nbsp;
@@ -67,19 +67,19 @@ NOTE: master is our *development* branch and may not be stable at all times.
 
 NSQ was designed and developed by Matt Reiferson ([@imsnakes][snakes_twitter]) and Jehiah Czebotar
 ([@jehiah][jehiah_twitter]) but wouldn't have been possible without the support of
-[bitly][bitly] and all our [contributors][contributors].
+[deepglint][deepglint] and all our [contributors][contributors].
 
 [docs]: http://nsq.io/
-[github]: https://github.com/bitly/nsq
-[issues]: https://github.com/bitly/nsq/issues
+[github]: https://github.com/deepglint/nsq
+[issues]: https://github.com/deepglint/nsq/issues
 [changelog]: ChangeLog.md
 [protocol]: http://nsq.io/clients/tcp_protocol_spec.html
 [installing]: http://nsq.io/deployment/installing.html
 [snakes_twitter]: https://twitter.com/imsnakes
 [jehiah_twitter]: https://twitter.com/jehiah
-[bitly]: https://bitly.com
+[deepglint]: https://deepglint.com
 [features_guarantees]: http://nsq.io/overview/features_and_guarantees.html
-[latest_tag]: https://github.com/bitly/nsq/releases/tag/v0.3.5
-[contributors]: https://github.com/bitly/nsq/graphs/contributors
+[latest_tag]: https://github.com/deepglint/nsq/releases/tag/v0.3.5
+[contributors]: https://github.com/deepglint/nsq/graphs/contributors
 [client_libraries]: http://nsq.io/clients/client_libraries.html
 [nsqio_twitter]: https://twitter.com/nsqio

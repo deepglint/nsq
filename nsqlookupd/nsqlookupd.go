@@ -6,10 +6,10 @@ import (
 	"os"
 	"sync"
 
-	"github.com/bitly/nsq/internal/http_api"
-	"github.com/bitly/nsq/internal/protocol"
-	"github.com/bitly/nsq/internal/util"
-	"github.com/bitly/nsq/internal/version"
+	"github.com/deepglint/nsq/internal/http_api"
+	"github.com/deepglint/nsq/internal/protocol"
+	"github.com/deepglint/nsq/internal/util"
+	"github.com/deepglint/nsq/internal/version"
 )
 
 type NSQLookupd struct {

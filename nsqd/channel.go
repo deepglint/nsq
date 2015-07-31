@@ -4,14 +4,14 @@ import (
 	"bytes"
 	"container/heap"
 	"errors"
+	"github.com/deepglint/nsq/internal/pqueue"
+	"github.com/deepglint/nsq/internal/quantile"
+	"github.com/deepglint/nsq/parser"
 	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/bitly/nsq/internal/pqueue"
-	"github.com/bitly/nsq/internal/quantile"
 )
 
 type Consumer interface {
@@ -71,6 +71,8 @@ type Channel struct {
 
 	// stat counters
 	bufferedCount int32
+
+	flagsMap map[string]interface{} //store extend flag @muse
 }
 
 // NewChannel creates a new instance of the Channel type and returns a pointer
@@ -86,7 +88,20 @@ func NewChannel(topicName string, channelName string, ctx *context,
 		clients:        make(map[int64]Consumer),
 		deleteCallback: deleteCallback,
 		ctx:            ctx,
+		flagsMap:       make(map[string]interface{}),
 	}
+	/*
+	   @muse
+	   parse channelName , replace realName , save flag in flagsMap, replace opts
+	   **/
+	c.flagsMap = parser.Parse(channelName)
+	channelName = parser.GetRealName(channelName)
+	c.name = channelName
+	if v, ok := c.flagsMap["memsize"]; ok {
+		c.memoryMsgChan = make(chan *Message, v.(int))
+	}
+	v_nodisk, ok_nodisk := c.flagsMap["nodisk"]
+
 	if len(ctx.nsqd.getOpts().E2EProcessingLatencyPercentiles) > 0 {
 		c.e2eProcessingLatencyStream = quantile.New(
 			ctx.nsqd.getOpts().E2EProcessingLatencyWindowTime,
@@ -96,7 +111,7 @@ func NewChannel(topicName string, channelName string, ctx *context,
 
 	c.initPQ()
 
-	if strings.HasSuffix(channelName, "#ephemeral") {
+	if strings.HasSuffix(channelName, "#ephemeral") || (ok_nodisk && v_nodisk.(bool)) {
 		c.ephemeral = true
 		c.backend = newDummyBackendQueue()
 	} else {
@@ -317,15 +332,22 @@ func (c *Channel) put(m *Message) error {
 	select {
 	case c.memoryMsgChan <- m:
 	default:
-		b := bufferPoolGet()
-		err := writeMessageToBackend(b, m, c.backend)
-		bufferPoolPut(b)
-		if err != nil {
-			c.ctx.nsqd.logf("CHANNEL(%s) ERROR: failed to write message to backend - %s",
-				c.name, err)
-			c.ctx.nsqd.SetHealth(err)
-			return err
+		v_nodisk, ok_nodisk := c.flagsMap["nodisk"]
+		if v, ok := c.flagsMap["circle"]; (ok_nodisk && v_nodisk.(bool)) || (ok && c.ephemeral && v.(bool)) {
+			<-c.memoryMsgChan
+			c.memoryMsgChan <- m
+		} else {
+			b := bufferPoolGet()
+			err := writeMessageToBackend(b, m, c.backend)
+			bufferPoolPut(b)
+			if err != nil {
+				c.ctx.nsqd.logf("CHANNEL(%s) ERROR: failed to write message to backend - %s",
+					c.name, err)
+				c.ctx.nsqd.SetHealth(err)
+				return err
+			}
 		}
+
 	}
 	return nil
 }
@@ -412,7 +434,9 @@ func (c *Channel) RemoveClient(clientID int64) {
 	}
 	delete(c.clients, clientID)
 
-	if len(c.clients) == 0 && c.ephemeral == true {
+	m_v, m_ok := c.flagsMap["once"]
+
+	if len(c.clients) == 0 && (c.ephemeral == true || (m_ok && m_v.(bool))) {
 		go c.deleter.Do(func() { c.deleteCallback(c) })
 	}
 }
@@ -567,7 +591,12 @@ func (c *Channel) messagePump() {
 		}
 
 		msg.Attempts++
-
+		//drop ttl msg
+		if v_ttl, ok_ttl := c.flagsMap["ttl"]; ok_ttl && v_ttl.(int) > 0 {
+			if v_ttl.(int) <= parser.Time2NowInMillisecond(msg.Timestamp) {
+				continue
+			}
+		}
 		atomic.StoreInt32(&c.bufferedCount, 1)
 		c.clientMsgChan <- msg
 		atomic.StoreInt32(&c.bufferedCount, 0)

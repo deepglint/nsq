@@ -4,7 +4,7 @@ import (
 	"sort"
 	"sync/atomic"
 
-	"github.com/bitly/nsq/internal/quantile"
+	"github.com/deepglint/nsq/internal/quantile"
 )
 
 type TopicStats struct {

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bitly/go-nsq"
-	"github.com/bitly/nsq/internal/http_api"
-	lookuputil "github.com/bitly/nsq/internal/lookupd"
+	"github.com/deepglint/go-nsq"
+	"github.com/deepglint/nsq/internal/http_api"
+	lookuputil "github.com/deepglint/nsq/internal/lookupd"
 )
 
 func equal(t *testing.T, act, exp interface{}) {

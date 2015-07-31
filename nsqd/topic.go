@@ -3,12 +3,12 @@ package nsqd
 import (
 	"bytes"
 	"errors"
+	"github.com/deepglint/nsq/internal/quantile"
+	"github.com/deepglint/nsq/internal/util"
+	"github.com/deepglint/nsq/parser"
 	"strings"
 	"sync"
 	"sync/atomic"
-
-	"github.com/bitly/nsq/internal/quantile"
-	"github.com/bitly/nsq/internal/util"
 )
 
 type Topic struct {
@@ -34,6 +34,8 @@ type Topic struct {
 	pauseChan chan bool
 
 	ctx *context
+
+	flagsMap map[string]interface{} //store extend flag @muse
 }
 
 // Topic constructor
@@ -47,9 +49,20 @@ func NewTopic(topicName string, ctx *context, deleteCallback func(*Topic)) *Topi
 		ctx:               ctx,
 		pauseChan:         make(chan bool),
 		deleteCallback:    deleteCallback,
+		flagsMap:          make(map[string]interface{}),
 	}
-
-	if strings.HasSuffix(topicName, "#ephemeral") {
+	/*
+	   @muse
+	   parse topicName , replace realName , save flag in flagsMap, replace opts
+	   **/
+	t.flagsMap = parser.Parse(topicName)
+	topicName = parser.GetRealName(topicName)
+	t.name = topicName
+	if v, ok := t.flagsMap["memsize"]; ok {
+		t.memoryMsgChan = make(chan *Message, v.(int))
+	}
+	v_nodisk, ok_nodisk := t.flagsMap["nodisk"]
+	if strings.HasSuffix(topicName, "#ephemeral") || (ok_nodisk && v_nodisk.(bool)) {
 		t.ephemeral = true
 		t.backend = newDummyBackendQueue()
 	} else {
@@ -96,13 +109,14 @@ func (t *Topic) GetChannel(channelName string) *Channel {
 
 // this expects the caller to handle locking
 func (t *Topic) getOrCreateChannel(channelName string) (*Channel, bool) {
-	channel, ok := t.channelMap[channelName]
+	channelNameReal := parser.GetRealName(channelName)
+	channel, ok := t.channelMap[channelNameReal]
 	if !ok {
 		deleteCallback := func(c *Channel) {
 			t.DeleteExistingChannel(c.name)
 		}
 		channel = NewChannel(t.name, channelName, t.ctx, deleteCallback)
-		t.channelMap[channelName] = channel
+		t.channelMap[channel.name] = channel
 		t.ctx.nsqd.logf("TOPIC(%s): new channel(%s)", t.name, channel.name)
 		return channel, true
 	}
@@ -110,9 +124,10 @@ func (t *Topic) getOrCreateChannel(channelName string) (*Channel, bool) {
 }
 
 func (t *Topic) GetExistingChannel(channelName string) (*Channel, error) {
+	channelNameReal := parser.GetRealName(channelName)
 	t.RLock()
 	defer t.RUnlock()
-	channel, ok := t.channelMap[channelName]
+	channel, ok := t.channelMap[channelNameReal]
 	if !ok {
 		return nil, errors.New("channel does not exist")
 	}
@@ -121,13 +136,14 @@ func (t *Topic) GetExistingChannel(channelName string) (*Channel, error) {
 
 // DeleteExistingChannel removes a channel from the topic only if it exists
 func (t *Topic) DeleteExistingChannel(channelName string) error {
+	channelNameReal := parser.GetRealName(channelName)
 	t.Lock()
-	channel, ok := t.channelMap[channelName]
+	channel, ok := t.channelMap[channelNameReal]
 	if !ok {
 		t.Unlock()
 		return errors.New("channel does not exist")
 	}
-	delete(t.channelMap, channelName)
+	delete(t.channelMap, channel.name)
 	// not defered so that we can continue while the channel async closes
 	numChannels := len(t.channelMap)
 	t.Unlock()
@@ -143,8 +159,8 @@ func (t *Topic) DeleteExistingChannel(channelName string) error {
 	case t.channelUpdateChan <- 1:
 	case <-t.exitChan:
 	}
-
-	if numChannels == 0 && t.ephemeral == true {
+	m_v, m_ok := t.flagsMap["once"]
+	if numChannels == 0 && (t.ephemeral == true || (m_ok && m_v.(bool))) {
 		go t.deleter.Do(func() { t.deleteCallback(t) })
 	}
 
@@ -184,19 +200,27 @@ func (t *Topic) PutMessages(msgs []*Message) error {
 }
 
 func (t *Topic) put(m *Message) error {
+
 	select {
 	case t.memoryMsgChan <- m:
 	default:
-		b := bufferPoolGet()
-		err := writeMessageToBackend(b, m, t.backend)
-		bufferPoolPut(b)
-		if err != nil {
-			t.ctx.nsqd.logf(
-				"TOPIC(%s) ERROR: failed to write message to backend - %s",
-				t.name, err)
-			t.ctx.nsqd.SetHealth(err)
-			return err
+		v_nodisk, ok_nodisk := t.flagsMap["nodisk"]
+		if v, ok := t.flagsMap["circle"]; (ok_nodisk && v_nodisk.(bool)) || (ok && t.ephemeral && v.(bool)) {
+			<-t.memoryMsgChan
+			t.memoryMsgChan <- m
+		} else {
+			b := bufferPoolGet()
+			err := writeMessageToBackend(b, m, t.backend)
+			bufferPoolPut(b)
+			if err != nil {
+				t.ctx.nsqd.logf(
+					"TOPIC(%s) ERROR: failed to write message to backend - %s",
+					t.name, err)
+				t.ctx.nsqd.SetHealth(err)
+				return err
+			}
 		}
+
 	}
 	return nil
 }
@@ -262,7 +286,12 @@ func (t *Topic) messagePump() {
 		case <-t.exitChan:
 			goto exit
 		}
-
+		//drop ttl msg
+		if v_ttl, ok_ttl := t.flagsMap["ttl"]; ok_ttl && v_ttl.(int) > 0 {
+			if v_ttl.(int) <= parser.Time2NowInMillisecond(msg.Timestamp) {
+				continue
+			}
+		}
 		for i, channel := range chans {
 			chanMsg := msg
 			// copy the message because each channel

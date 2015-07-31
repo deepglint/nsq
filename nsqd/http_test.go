@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bitly/go-nsq"
-	"github.com/bitly/nsq/internal/version"
-	"github.com/bitly/nsq/nsqlookupd"
+	"github.com/deepglint/go-nsq"
+	"github.com/deepglint/nsq/internal/version"
+	"github.com/deepglint/nsq/nsqlookupd"
 )
 
 func TestHTTPput(t *testing.T) {
@@ -759,28 +759,4 @@ func TestHTTPconfig(t *testing.T) {
 	body, _ = ioutil.ReadAll(resp.Body)
 	equal(t, resp.StatusCode, 200)
 	equal(t, string(body), addrs)
-}
-
-func TestHTTPerrors(t *testing.T) {
-	opts := NewOptions()
-	opts.Logger = newTestLogger(t)
-	_, httpAddr, nsqd := mustStartNSQD(opts)
-	defer os.RemoveAll(opts.DataPath)
-	defer nsqd.Exit()
-
-	url := fmt.Sprintf("http://%s/stats", httpAddr)
-	resp, err := http.Post(url, "text/plain", nil)
-	equal(t, err, nil)
-	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
-	equal(t, resp.StatusCode, 405)
-	equal(t, string(body), `{"message":"METHOD_NOT_ALLOWED"}`)
-
-	url = fmt.Sprintf("http://%s/not_found", httpAddr)
-	resp, err = http.Get(url)
-	equal(t, err, nil)
-	defer resp.Body.Close()
-	body, _ = ioutil.ReadAll(resp.Body)
-	equal(t, resp.StatusCode, 404)
-	equal(t, string(body), `{"message":"NOT_FOUND"}`)
 }

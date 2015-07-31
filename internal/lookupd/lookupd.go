@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bitly/nsq/internal/http_api"
-	"github.com/bitly/nsq/internal/quantile"
-	"github.com/bitly/nsq/internal/stringy"
 	"github.com/blang/semver"
+	"github.com/deepglint/nsq/internal/http_api"
+	"github.com/deepglint/nsq/internal/quantile"
+	"github.com/deepglint/nsq/internal/stringy"
 )
 
 // GetVersion returns a semver.Version object by querying /info

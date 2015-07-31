@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bitly/nsq/internal/http_api"
+	"github.com/deepglint/nsq/internal/http_api"
 	"github.com/mreiferson/go-snappystream"
 )
 

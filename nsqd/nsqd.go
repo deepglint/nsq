@@ -6,6 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/bitly/go-simplejson"
+	"github.com/deepglint/nsq/internal/http_api"
+	"github.com/deepglint/nsq/internal/lookupd"
+	"github.com/deepglint/nsq/internal/protocol"
+	"github.com/deepglint/nsq/internal/statsd"
+	"github.com/deepglint/nsq/internal/util"
+	"github.com/deepglint/nsq/internal/version"
+	"github.com/deepglint/nsq/parser"
 	"io/ioutil"
 	"math/rand"
 	"net"
@@ -16,14 +24,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/bitly/go-simplejson"
-	"github.com/bitly/nsq/internal/http_api"
-	"github.com/bitly/nsq/internal/lookupd"
-	"github.com/bitly/nsq/internal/protocol"
-	"github.com/bitly/nsq/internal/statsd"
-	"github.com/bitly/nsq/internal/util"
-	"github.com/bitly/nsq/internal/version"
 )
 
 const (
@@ -345,7 +345,8 @@ func (n *NSQD) PersistMetadata() error {
 	js := make(map[string]interface{})
 	topics := []interface{}{}
 	for _, topic := range n.topicMap {
-		if topic.ephemeral {
+		m_v, m_ok := topic.flagsMap["once"]
+		if topic.ephemeral || (m_ok && m_v.(bool)) {
 			continue
 		}
 		topicData := make(map[string]interface{})
@@ -355,7 +356,8 @@ func (n *NSQD) PersistMetadata() error {
 		topic.Lock()
 		for _, channel := range topic.channelMap {
 			channel.Lock()
-			if channel.ephemeral {
+			m_v, m_ok := channel.flagsMap["once"]
+			if channel.ephemeral || (m_ok && m_v.(bool)) {
 				channel.Unlock()
 				continue
 			}
@@ -432,9 +434,10 @@ func (n *NSQD) Exit() {
 // GetTopic performs a thread safe operation
 // to return a pointer to a Topic object (potentially new)
 func (n *NSQD) GetTopic(topicName string) *Topic {
+	topicNameReal := parser.GetRealName(topicName)
 	n.Lock()
 
-	t, ok := n.topicMap[topicName]
+	t, ok := n.topicMap[topicNameReal]
 	if ok {
 		n.Unlock()
 		return t
@@ -443,7 +446,7 @@ func (n *NSQD) GetTopic(topicName string) *Topic {
 		n.DeleteExistingTopic(t.name)
 	}
 	t = NewTopic(topicName, &context{n}, deleteCallback)
-	n.topicMap[topicName] = t
+	n.topicMap[t.name] = t
 
 	n.logf("TOPIC(%s): created", t.name)
 
@@ -458,6 +461,7 @@ func (n *NSQD) GetTopic(topicName string) *Topic {
 	if len(lookupdHTTPAddrs) > 0 {
 		channelNames, _ := lookupd.GetLookupdTopicChannels(t.name, lookupdHTTPAddrs)
 		for _, channelName := range channelNames {
+			//todo: once how to do
 			if strings.HasSuffix(channelName, "#ephemeral") {
 				// we don't want to pre-create ephemeral channels
 				// because there isn't a client connected
@@ -484,9 +488,10 @@ func (n *NSQD) GetTopic(topicName string) *Topic {
 
 // GetExistingTopic gets a topic only if it exists
 func (n *NSQD) GetExistingTopic(topicName string) (*Topic, error) {
+	topicNameReal := parser.GetRealName(topicName)
 	n.RLock()
 	defer n.RUnlock()
-	topic, ok := n.topicMap[topicName]
+	topic, ok := n.topicMap[topicNameReal]
 	if !ok {
 		return nil, errors.New("topic does not exist")
 	}
@@ -495,8 +500,9 @@ func (n *NSQD) GetExistingTopic(topicName string) (*Topic, error) {
 
 // DeleteExistingTopic removes a topic only if it exists
 func (n *NSQD) DeleteExistingTopic(topicName string) error {
+	topicNameReal := parser.GetRealName(topicName)
 	n.RLock()
-	topic, ok := n.topicMap[topicName]
+	topic, ok := n.topicMap[topicNameReal]
 	if !ok {
 		n.RUnlock()
 		return errors.New("topic does not exist")

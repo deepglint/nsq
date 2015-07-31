@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/bitly/nsq/internal/http_api"
-	"github.com/bitly/nsq/internal/version"
+	"github.com/deepglint/nsq/internal/http_api"
+	"github.com/deepglint/nsq/internal/version"
 )
 
 var httpclient *http.Client

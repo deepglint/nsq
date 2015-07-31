@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/bitly/nsq/internal/version"
-	"github.com/bitly/nsq/nsqlookupd"
+	"github.com/deepglint/nsq/internal/version"
+	"github.com/deepglint/nsq/nsqlookupd"
 	"github.com/mreiferson/go-options"
 )
 

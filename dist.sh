@@ -3,9 +3,9 @@
 # 1. commit to bump the version and update the changelog/readme
 # 2. tag that commit
 # 3. use dist.sh to produce tar.gz for linux and darwin
-# 4. upload *.tar.gz to our bitly s3 bucket
+# 4. upload *.tar.gz to our deepglint s3 bucket
 # 5. docker push nsqio/nsq
-# 6. push to bitly/master
+# 6. push to deepglint/master
 # 7. update the release metadata on github / upload the binaries there too
 # 8. update the gh-pages branch with versions / download links
 # 9. update homebrew version

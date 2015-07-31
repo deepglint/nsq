@@ -5,8 +5,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/bitly/nsq/internal/quantile"
 	"github.com/blang/semver"
+	"github.com/deepglint/nsq/internal/quantile"
 )
 
 type ProducerTopic struct {

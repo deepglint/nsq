@@ -19,11 +19,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/bitly/go-hostpool"
-	"github.com/bitly/go-nsq"
-	"github.com/bitly/nsq/internal/app"
-	"github.com/bitly/nsq/internal/version"
-	"github.com/bitly/timer_metrics"
+	"github.com/deepglint/go-hostpool"
+	"github.com/deepglint/go-nsq"
+	"github.com/deepglint/nsq/internal/app"
+	"github.com/deepglint/nsq/internal/version"
+	"github.com/deepglint/timer_metrics"
 )
 
 const (
@@ -62,7 +62,7 @@ var (
 func init() {
 	// TODO: remove, deprecated
 	flag.Var(&consumerOpts, "reader-opt", "(deprecated) use --consumer-opt")
-	flag.Var(&consumerOpts, "consumer-opt", "option to passthrough to nsq.Consumer (may be given multiple times, http://godoc.org/github.com/bitly/go-nsq#Config)")
+	flag.Var(&consumerOpts, "consumer-opt", "option to passthrough to nsq.Consumer (may be given multiple times, http://godoc.org/github.com/deepglint/go-nsq#Config)")
 
 	flag.Var(&postAddrs, "post", "HTTP address to make a POST request to.  data will be in the body (may be given multiple times)")
 	flag.Var(&getAddrs, "get", "HTTP address to make a GET request to. '%s' will be printf replaced with data (may be given multiple times)")

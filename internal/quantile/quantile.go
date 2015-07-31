@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bitly/nsq/internal/stringy"
 	"github.com/bmizerany/perks/quantile"
+	"github.com/deepglint/nsq/internal/stringy"
 )
 
 type Result struct {

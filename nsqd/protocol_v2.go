@@ -14,8 +14,9 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/bitly/nsq/internal/protocol"
-	"github.com/bitly/nsq/internal/version"
+	"github.com/deepglint/nsq/internal/protocol"
+	"github.com/deepglint/nsq/internal/version"
+	"github.com/deepglint/nsq/parser"
 )
 
 const maxTimeout = time.Hour
@@ -305,6 +306,13 @@ func (p *protocolV2) messagePump(client *clientV2, startedChan chan bool) {
 
 			if sampleRate > 0 && rand.Int31n(100) > sampleRate {
 				continue
+			}
+
+			//drop ttl msg
+			if v_ttl, ok_ttl := subChannel.flagsMap["ttl"]; ok_ttl && v_ttl.(int) > 0 {
+				if v_ttl.(int) <= parser.Time2NowInMillisecond(msg.Timestamp) {
+					continue
+				}
 			}
 
 			subChannel.StartInFlightTimeout(msg, client.ID, msgTimeout)
