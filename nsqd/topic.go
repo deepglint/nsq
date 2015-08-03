@@ -62,8 +62,10 @@ func NewTopic(topicName string, ctx *context, deleteCallback func(*Topic)) *Topi
 		t.memoryMsgChan = make(chan *Message, v.(int))
 	}
 	v_nodisk, ok_nodisk := t.flagsMap["nodisk"]
-	if strings.HasSuffix(topicName, "#ephemeral") || (ok_nodisk && v_nodisk.(bool)) {
+	if strings.HasSuffix(topicName, "#ephemeral") {
 		t.ephemeral = true
+		t.backend = newDummyBackendQueue()
+	} else if ok_nodisk && v_nodisk.(bool) {
 		t.backend = newDummyBackendQueue()
 	} else {
 		t.backend = newDiskQueue(topicName,
@@ -205,7 +207,7 @@ func (t *Topic) put(m *Message) error {
 	case t.memoryMsgChan <- m:
 	default:
 		v_nodisk, ok_nodisk := t.flagsMap["nodisk"]
-		if v, ok := t.flagsMap["circle"]; (ok_nodisk && v_nodisk.(bool)) || (ok && t.ephemeral && v.(bool)) {
+		if v, ok := t.flagsMap["circle"]; ((ok_nodisk && v_nodisk.(bool)) || t.ephemeral) && (ok && v.(bool)) {
 			<-t.memoryMsgChan
 			t.memoryMsgChan <- m
 		} else {

@@ -111,8 +111,10 @@ func NewChannel(topicName string, channelName string, ctx *context,
 
 	c.initPQ()
 
-	if strings.HasSuffix(channelName, "#ephemeral") || (ok_nodisk && v_nodisk.(bool)) {
+	if strings.HasSuffix(channelName, "#ephemeral") {
 		c.ephemeral = true
+		c.backend = newDummyBackendQueue()
+	} else if ok_nodisk && v_nodisk.(bool) {
 		c.backend = newDummyBackendQueue()
 	} else {
 		// backend names, for uniqueness, automatically include the topic...
@@ -333,7 +335,7 @@ func (c *Channel) put(m *Message) error {
 	case c.memoryMsgChan <- m:
 	default:
 		v_nodisk, ok_nodisk := c.flagsMap["nodisk"]
-		if v, ok := c.flagsMap["circle"]; (ok_nodisk && v_nodisk.(bool)) || (ok && c.ephemeral && v.(bool)) {
+		if v, ok := c.flagsMap["circle"]; ((ok_nodisk && v_nodisk.(bool)) || c.ephemeral) && (ok && v.(bool)) {
 			<-c.memoryMsgChan
 			c.memoryMsgChan <- m
 		} else {
