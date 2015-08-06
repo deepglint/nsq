@@ -85,6 +85,7 @@ func nsqFlagset() *flag.FlagSet {
 	flagSet.String("https-address", "", "<addr>:<port> to listen on for HTTPS clients")
 	flagSet.String("http-address", "0.0.0.0:4151", "<addr>:<port> to listen on for HTTP clients")
 	flagSet.String("tcp-address", "0.0.0.0:4150", "<addr>:<port> to listen on for TCP clients")
+	flagSet.String("udp-address", "0.0.0.0:4149", "<addr>:<port> to listen on for UDP clients")
 
 	authHTTPAddresses := app.StringArray{}
 	flagSet.Var(&authHTTPAddresses, "auth-http-address", "<addr>:<port> to query auth server (may be given multiple times)")

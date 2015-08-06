@@ -15,6 +15,7 @@ type Options struct {
 	ID                     int64    `flag:"worker-id" cfg:"id"`
 	Verbose                bool     `flag:"verbose"`
 	TCPAddress             string   `flag:"tcp-address"`
+	UDPAddress             string   `flag:"udp-address"`
 	HTTPAddress            string   `flag:"http-address"`
 	HTTPSAddress           string   `flag:"https-address"`
 	BroadcastAddress       string   `flag:"broadcast-address"`
@@ -88,6 +89,7 @@ func NewOptions() *Options {
 		ID: defaultID,
 
 		TCPAddress:       "0.0.0.0:4150",
+		UDPAddress:       "0.0.0.0:4149",
 		HTTPAddress:      "0.0.0.0:4151",
 		HTTPSAddress:     "0.0.0.0:4152",
 		BroadcastAddress: hostname,

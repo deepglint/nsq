@@ -55,6 +55,7 @@ type NSQD struct {
 	lookupPeers atomic.Value
 
 	tcpListener   net.Listener
+	udpConn       *net.UDPConn
 	httpListener  net.Listener
 	httpsListener net.Listener
 	tlsConfig     *tls.Config
@@ -229,6 +230,25 @@ func (n *NSQD) Main() {
 	n.waitGroup.Wrap(func() {
 		protocol.TCPServer(n.tcpListener, tcpServer, n.getOpts().Logger)
 	})
+	udpaddr, err := net.ResolveUDPAddr("udp", n.getOpts().UDPAddress)
+	if err != nil {
+		n.logf("Can't resolve address: ", err)
+		os.Exit(1)
+	}
+	n.logf("udp start")
+	udpConn, udperr := net.ListenUDP("udp", udpaddr)
+	if udperr != nil {
+		n.logf("FATAL: listen (%s) failed - %s", n.getOpts().UDPAddress, udperr)
+		os.Exit(1)
+	}
+	//n.logf("Can't resolve address:%s ", udpConn)
+	n.Lock()
+	n.udpConn = udpConn
+	n.Unlock()
+	udpServer := &udpServer{ctx: ctx, readdata: make([]byte, n.getOpts().MaxMsgSize+1)}
+	n.waitGroup.Wrap(func() {
+		protocol.UDPServer(&n.udpConn, udpServer, n.getOpts().Logger)
+	})
 
 	if n.tlsConfig != nil && n.getOpts().HTTPSAddress != "" {
 		httpsListener, err = tls.Listen("tcp", n.getOpts().HTTPSAddress, n.tlsConfig)
@@ -297,6 +317,13 @@ func (n *NSQD) LoadMetadata() {
 			n.logf("ERROR: failed to parse metadata - %s", err)
 			return
 		}
+		topicFlagsMap, errMap := topicJs.Get("flags").Map()
+
+		if errMap != nil {
+			n.logf("flags to map faild:%s", errMap)
+		}
+		topicName = parser.GetNameWithFlags(topicName, topicFlagsMap)
+
 		if !protocol.IsValidTopicName(topicName) {
 			n.logf("WARNING: skipping creation of invalid topic %s", topicName)
 			continue
@@ -322,6 +349,8 @@ func (n *NSQD) LoadMetadata() {
 				n.logf("ERROR: failed to parse metadata - %s", err)
 				return
 			}
+			channelFlagsMap, _ := channelJs.Get("flags").Map()
+			channelName = parser.GetNameWithFlags(channelName, channelFlagsMap)
 			if !protocol.IsValidChannelName(channelName) {
 				n.logf("WARNING: skipping creation of invalid channel %s", channelName)
 				continue
@@ -352,6 +381,8 @@ func (n *NSQD) PersistMetadata() error {
 		topicData := make(map[string]interface{})
 		topicData["name"] = topic.name
 		topicData["paused"] = topic.IsPaused()
+		topicData["flags"] = topic.flagsMap
+
 		channels := []interface{}{}
 		topic.Lock()
 		for _, channel := range topic.channelMap {
@@ -364,6 +395,7 @@ func (n *NSQD) PersistMetadata() error {
 			channelData := make(map[string]interface{})
 			channelData["name"] = channel.name
 			channelData["paused"] = channel.IsPaused()
+			channelData["flags"] = channel.flagsMap
 			channels = append(channels, channelData)
 			channel.Unlock()
 		}
@@ -404,6 +436,11 @@ func (n *NSQD) PersistMetadata() error {
 func (n *NSQD) Exit() {
 	if n.tcpListener != nil {
 		n.tcpListener.Close()
+	}
+
+	if n.udpConn != nil {
+		n.udpConn.Close()
+		n.udpConn = nil
 	}
 
 	if n.httpListener != nil {
